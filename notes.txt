@@ -1,0 +1,3 @@
+Questions:
+If engine evals for 2 board positions are different can be called similar?
+better metric than physical board distance, like non-euclidean
