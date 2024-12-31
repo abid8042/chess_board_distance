@@ -1,0 +1,67 @@
+import chess
+import networkx as nx
+
+# Define material values for each piece type
+MATERIAL_VALUES = {
+    chess.PAWN: 1,
+    chess.KNIGHT: 3,
+    chess.BISHOP: 3,
+    chess.ROOK: 5,
+    chess.QUEEN: 9,
+    chess.KING: 0  # King's value is not used for scaling centrality
+}
+
+def calculate_centrality_measures_by_color(board):
+    # Create a graph to represent the board
+    G = nx.Graph()
+    
+    # Iterate over all squares on the board
+    for square in chess.SQUARES:
+        piece = board.piece_at(square)
+        if piece:
+            # Add a node for each piece
+            G.add_node(square, piece=piece.symbol())
+            # Add edges for each legal move from this square
+            for move in board.legal_moves:
+                if move.from_square == square:
+                    G.add_edge(move.from_square, move.to_square)
+    
+    # Calculate degree centrality
+    degree_centrality = nx.degree_centrality(G)
+    
+    # Calculate betweenness centrality
+    betweenness_centrality = nx.betweenness_centrality(G)
+    
+    # Scale centrality measures by material value for each color
+    weighted_degree_centrality_white = {}
+    weighted_degree_centrality_black = {}
+    weighted_betweenness_centrality_white = {}
+    weighted_betweenness_centrality_black = {}
+    
+    for square in G.nodes:
+        piece = board.piece_at(square)
+        if piece:
+            material_value = MATERIAL_VALUES[piece.piece_type]
+            weighted_degree_value = degree_centrality[square] * material_value
+            weighted_betweenness_value = betweenness_centrality[square] * material_value
+            
+            # Separate centrality by color
+            if piece.color == chess.WHITE:
+                weighted_degree_centrality_white[square] = weighted_degree_value
+                weighted_betweenness_centrality_white[square] = weighted_betweenness_value
+            else:
+                weighted_degree_centrality_black[square] = weighted_degree_value
+                weighted_betweenness_centrality_black[square] = weighted_betweenness_value
+    
+    return (weighted_degree_centrality_white, weighted_degree_centrality_black,
+            weighted_betweenness_centrality_white, weighted_betweenness_centrality_black)
+
+# Example usage
+board = chess.Board()  # Start from the initial position
+(weighted_degree_centrality_white, weighted_degree_centrality_black,
+ weighted_betweenness_centrality_white, weighted_betweenness_centrality_black) = calculate_centrality_measures_by_color(board)
+
+print("Weighted Degree Centrality (White):", weighted_degree_centrality_white)
+print("Weighted Degree Centrality (Black):", weighted_degree_centrality_black)
+print("Weighted Betweenness Centrality (White):", weighted_betweenness_centrality_white)
+print("Weighted Betweenness Centrality (Black):", weighted_betweenness_centrality_black)
