@@ -11,7 +11,7 @@ MATERIAL_VALUES = {
     chess.KING: 0  # King's value is not used for scaling connectivity
 }
 
-def calculate_weighted_connectivity(board):
+def calculate_weighted_connectivity_by_color(board):
     # Create a graph to represent the board
     G = nx.Graph()
     
@@ -26,19 +26,28 @@ def calculate_weighted_connectivity(board):
                 if move.from_square == square:
                     G.add_edge(move.from_square, move.to_square)
     
-    # Calculate connectivity and scale by material value
-    weighted_connectivity = {}
+    # Calculate connectivity and scale by material value for each color
+    weighted_connectivity_white = {}
+    weighted_connectivity_black = {}
+    
     for square in G.nodes:
         piece = board.piece_at(square)
         if piece:
             # Calculate the number of connections (degree) for this piece
             connectivity = len(list(G.neighbors(square)))
             # Scale by the material value of the piece
-            weighted_connectivity[square] = connectivity * MATERIAL_VALUES[piece.piece_type]
+            weighted_value = connectivity * MATERIAL_VALUES[piece.piece_type]
+            
+            # Separate connectivity by color
+            if piece.color == chess.WHITE:
+                weighted_connectivity_white[square] = weighted_value
+            else:
+                weighted_connectivity_black[square] = weighted_value
     
-    return weighted_connectivity
+    return weighted_connectivity_white, weighted_connectivity_black
 
 # Example usage
 board = chess.Board()  # Start from the initial position
-weighted_connectivity = calculate_weighted_connectivity(board)
-print("Weighted Connectivity:", weighted_connectivity)
+weighted_connectivity_white, weighted_connectivity_black = calculate_weighted_connectivity_by_color(board)
+print("Weighted Connectivity (White):", weighted_connectivity_white)
+print("Weighted Connectivity (Black):", weighted_connectivity_black)
