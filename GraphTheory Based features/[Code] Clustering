@@ -1,0 +1,98 @@
+import chess
+import networkx as nx
+
+def create_board_graph(board):
+    """Create a graph where nodes are squares with pieces, and edges represent potential support or attack."""
+    G = nx.Graph()
+    for square in chess.SQUARES:
+        piece = board.piece_at(square)
+        if piece:
+            G.add_node(square, piece=piece.symbol())
+            for move in board.legal_moves:
+                if move.from_square == square:
+                    G.add_edge(move.from_square, move.to_square)
+    return G
+
+def identify_pawn_chains(board, color):
+    """Identify clusters of pawns that form chains for a specific color."""
+    pawn_chains = []
+    for square in chess.SQUARES:
+        piece = board.piece_at(square)
+        if piece and piece.piece_type == chess.PAWN and piece.color == color:
+            # Check for supporting pawns diagonally
+            for direction in [-9, -7, 7, 9]:  # Diagonal directions
+                neighbor_square = square + direction
+                if 0 <= neighbor_square < 64:
+                    neighbor_piece = board.piece_at(neighbor_square)
+                    if neighbor_piece and neighbor_piece.piece_type == chess.PAWN and neighbor_piece.color == color:
+                        pawn_chains.append((square, neighbor_square))
+    return pawn_chains
+
+def identify_coordinated_attacks(board, G, color):
+    """Identify clusters of pieces involved in coordinated attacks for a specific color."""
+    coordinated_attacks = []
+    for square in G.nodes:
+        piece = board.piece_at(square)
+        if piece and piece.color == color:
+            # Check for multiple pieces targeting the same square
+            for target in G.neighbors(square):
+                if board.is_attacked_by(color, target):
+                    coordinated_attacks.append((square, target))
+    return coordinated_attacks
+
+def identify_defensive_formations(board, G, color):
+    """Identify clusters of pieces involved in defensive formations for a specific color."""
+    defensive_formations = []
+    for square in G.nodes:
+        piece = board.piece_at(square)
+        if piece and piece.color == color:
+            # Check for pieces protecting the king or key squares
+            if piece.piece_type == chess.KING or board.is_attacked_by(color, square):
+                for neighbor in G.neighbors(square):
+                    if board.piece_at(neighbor) and board.piece_at(neighbor).color == color:
+                        defensive_formations.append((square, neighbor))
+    return defensive_formations
+
+def identify_control_of_key_areas(board, G, color):
+    """Identify clusters of pieces controlling key areas like the center for a specific color."""
+    control_of_key_areas = []
+    key_squares = [chess.E4, chess.D4, chess.E5, chess.D5]  # Central squares
+    for square in key_squares:
+        if board.is_attacked_by(color, square):
+            for neighbor in G.neighbors(square):
+                control_of_key_areas.append((square, neighbor))
+    return control_of_key_areas
+
+def calculate_clustering_features_by_color(board):
+    G = create_board_graph(board)
+    
+    clustering_features_white = {
+        "pawn_chains": identify_pawn_chains(board, chess.WHITE),
+        "coordinated_attacks": identify_coordinated_attacks(board, G, chess.WHITE),
+        "defensive_formations": identify_defensive_formations(board, G, chess.WHITE),
+        "control_of_key_areas": identify_control_of_key_areas(board, G, chess.WHITE)
+    }
+    
+    clustering_features_black = {
+        "pawn_chains": identify_pawn_chains(board, chess.BLACK),
+        "coordinated_attacks": identify_coordinated_attacks(board, G, chess.BLACK),
+        "defensive_formations": identify_defensive_formations(board, G, chess.BLACK),
+        "control_of_key_areas": identify_control_of_key_areas(board, G, chess.BLACK)
+    }
+    
+    return clustering_features_white, clustering_features_black
+
+# Example usage
+board = chess.Board()  # Start from the initial position
+clustering_features_white, clustering_features_black = calculate_clustering_features_by_color(board)
+print("White Clustering Features:")
+print("Pawn Chains:", clustering_features_white["pawn_chains"])
+print("Coordinated Attacks:", clustering_features_white["coordinated_attacks"])
+print("Defensive Formations:", clustering_features_white["defensive_formations"])
+print("Control of Key Areas:", clustering_features_white["control_of_key_areas"])
+
+print("\nBlack Clustering Features:")
+print("Pawn Chains:", clustering_features_black["pawn_chains"])
+print("Coordinated Attacks:", clustering_features_black["coordinated_attacks"])
+print("Defensive Formations:", clustering_features_black["defensive_formations"])
+print("Control of Key Areas:", clustering_features_black["control_of_key_areas"])
