@@ -1,0 +1,177 @@
+import chess
+import networkx as nx
+
+# Define key squares for different strategic purposes
+CENTRAL_SQUARES = [chess.E4, chess.D4, chess.E5, chess.D5]
+PROMOTION_SQUARES_WHITE = [chess.A8, chess.B8, chess.C8, chess.D8, chess.E8, chess.F8, chess.G8, chess.H8]
+PROMOTION_SQUARES_BLACK = [chess.A1, chess.B1, chess.C1, chess.D1, chess.E1, chess.F1, chess.G1, chess.H1]
+
+def identify_outposts(board, color):
+    outposts = []
+    ranks = range(4, 8) if color == chess.WHITE else range(0, 4)
+    for rank in ranks:
+        for file in range(8):
+            square = chess.square(file, rank)
+            if board.piece_at(square) is None:
+                if color == chess.WHITE and not board.is_attacked_by(chess.BLACK, square):
+                    outposts.append(square)
+                elif color == chess.BLACK and not board.is_attacked_by(chess.WHITE, square):
+                    outposts.append(square)
+    return outposts
+
+def identify_open_files(board):
+    open_files = []
+    for file in range(8):
+        has_white_pawn = False
+        has_black_pawn = False
+        for rank in range(8):
+            square = chess.square(file, rank)
+            piece = board.piece_at(square)
+            if piece and piece.piece_type == chess.PAWN:
+                if piece.color == chess.WHITE:
+                    has_white_pawn = True
+                else:
+                    has_black_pawn = True
+        if not has_white_pawn or not has_black_pawn:
+            open_files.append(file)
+    return open_files
+
+def identify_weak_squares(board, color):
+    weak_squares = []
+    for square in chess.SQUARES:
+        if board.piece_at(square) is None and not board.is_attacked_by(color, square):
+            weak_squares.append(square)
+    return weak_squares
+
+def calculate_shortest_paths_to_key_squares(board):
+    # Create a graph to represent the board
+    G = nx.Graph()
+    
+    # Add nodes for each square on the board
+    for square in chess.SQUARES:
+        G.add_node(square)
+    
+    # Add edges for each legal move from each square
+    for move in board.legal_moves:
+        G.add_edge(move.from_square, move.to_square)
+    
+    # Calculate shortest paths to key squares
+    shortest_paths = {
+        'central_squares_white': {},
+        'central_squares_black': {},
+        'promotion_squares_white': {},
+        'promotion_squares_black': {},
+        'outposts_white': {},
+        'outposts_black': {},
+        'open_files_white': {},
+        'open_files_black': {},
+        'weak_squares_white': {},
+        'weak_squares_black': {}
+    }
+    
+    outposts_white = identify_outposts(board, chess.WHITE)
+    outposts_black = identify_outposts(board, chess.BLACK)
+    open_files = identify_open_files(board)
+    weak_squares_white = identify_weak_squares(board, chess.WHITE)
+    weak_squares_black = identify_weak_squares(board, chess.BLACK)
+    
+    for square in G.nodes:
+        piece = board.piece_at(square)
+        if piece:
+            piece_color = piece.color
+            
+            # Calculate shortest paths to central squares
+            if piece_color == chess.WHITE:
+                for target in CENTRAL_SQUARES:
+                    try:
+                        path_length = nx.shortest_path_length(G, source=square, target=target)
+                        shortest_paths['central_squares_white'][(square, target)] = path_length
+                    except nx.NetworkXNoPath:
+                        shortest_paths['central_squares_white'][(square, target)] = float('inf')
+            else:
+                for target in CENTRAL_SQUARES:
+                    try:
+                        path_length = nx.shortest_path_length(G, source=square, target=target)
+                        shortest_paths['central_squares_black'][(square, target)] = path_length
+                    except nx.NetworkXNoPath:
+                        shortest_paths['central_squares_black'][(square, target)] = float('inf')
+            
+            # Calculate shortest paths to promotion squares
+            if piece_color == chess.WHITE:
+                for target in PROMOTION_SQUARES_WHITE:
+                    try:
+                        path_length = nx.shortest_path_length(G, source=square, target=target)
+                        shortest_paths['promotion_squares_white'][(square, target)] = path_length
+                    except nx.NetworkXNoPath:
+                        shortest_paths['promotion_squares_white'][(square, target)] = float('inf')
+            else:
+                for target in PROMOTION_SQUARES_BLACK:
+                    try:
+                        path_length = nx.shortest_path_length(G, source=square, target=target)
+                        shortest_paths['promotion_squares_black'][(square, target)] = path_length
+                    except nx.NetworkXNoPath:
+                        shortest_paths['promotion_squares_black'][(square, target)] = float('inf')
+            
+            # Calculate shortest paths to outposts
+            if piece_color == chess.WHITE:
+                for target in outposts_white:
+                    try:
+                        path_length = nx.shortest_path_length(G, source=square, target=target)
+                        shortest_paths['outposts_white'][(square, target)] = path_length
+                    except nx.NetworkXNoPath:
+                        shortest_paths['outposts_white'][(square, target)] = float('inf')
+            else:
+                for target in outposts_black:
+                    try:
+                        path_length = nx.shortest_path_length(G, source=square, target=target)
+                        shortest_paths['outposts_black'][(square, target)] = path_length
+                    except nx.NetworkXNoPath:
+                        shortest_paths['outposts_black'][(square, target)] = float('inf')
+            
+            # Calculate shortest paths to open files
+            for file in open_files:
+                for rank in range(8):
+                    target = chess.square(file, rank)
+                    try:
+                        path_length = nx.shortest_path_length(G, source=square, target=target)
+                        if piece_color == chess.WHITE:
+                            shortest_paths['open_files_white'][(square, target)] = path_length
+                        else:
+                            shortest_paths['open_files_black'][(square, target)] = path_length
+                    except nx.NetworkXNoPath:
+                        if piece_color == chess.WHITE:
+                            shortest_paths['open_files_white'][(square, target)] = float('inf')
+                        else:
+                            shortest_paths['open_files_black'][(square, target)] = float('inf')
+            
+            # Calculate shortest paths to weak squares
+            if piece_color == chess.WHITE:
+                for target in weak_squares_white:
+                    try:
+                        path_length = nx.shortest_path_length(G, source=square, target=target)
+                        shortest_paths['weak_squares_white'][(square, target)] = path_length
+                    except nx.NetworkXNoPath:
+                        shortest_paths['weak_squares_white'][(square, target)] = float('inf')
+            else:
+                for target in weak_squares_black:
+                    try:
+                        path_length = nx.shortest_path_length(G, source=square, target=target)
+                        shortest_paths['weak_squares_black'][(square, target)] = path_length
+                    except nx.NetworkXNoPath:
+                        shortest_paths['weak_squares_black'][(square, target)] = float('inf')
+    
+    return shortest_paths
+
+# Example usage
+board = chess.Board()  # Start from the initial position
+shortest_paths = calculate_shortest_paths_to_key_squares(board)
+print("Shortest Paths to Central Squares (White):", shortest_paths['central_squares_white'])
+print("Shortest Paths to Central Squares (Black):", shortest_paths['central_squares_black'])
+print("Shortest Paths to Promotion Squares (White):", shortest_paths['promotion_squares_white'])
+print("Shortest Paths to Promotion Squares (Black):", shortest_paths['promotion_squares_black'])
+print("Shortest Paths to Outposts (White):", shortest_paths['outposts_white'])
+print("Shortest Paths to Outposts (Black):", shortest_paths['outposts_black'])
+print("Shortest Paths to Open Files (White):", shortest_paths['open_files_white'])
+print("Shortest Paths to Open Files (Black):", shortest_paths['open_files_black'])
+print("Shortest Paths to Weak Squares (White):", shortest_paths['weak_squares_white'])
+print("Shortest Paths to Weak Squares (Black):", shortest_paths['weak_squares_black'])
