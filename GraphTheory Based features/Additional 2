@@ -1,0 +1,25 @@
+[Theory]
+
+To effectively utilize the Comprehensive Spectral Similarity Index (CSSI) and its sub-components, as well as the component metrics, we can draw on innovative ideas from Algebraic Graph Theory and Spectral Graph Theory. These ideas help us gain deeper insights into the structural and dynamic properties of chess positions, particularly through concepts like sign and basis invariance.
+
+1. CSSI Sub-Components
+Directional Influence Similarity (DIS)
+Sign and Basis Invariance:
+Cosine Similarity: By using cosine similarity between the principal eigenvectors of the adjacency matrices, we ensure that the comparison is invariant to the sign of the eigenvectors. This captures the alignment of directional influence without being affected by arbitrary sign changes.
+Weighted Influence: Incorporating piece values into the adjacency matrix weights ensures that the influence of more important pieces is appropriately considered, providing a basis-invariant measure of influence.
+Strategic Partitioning Similarity (SPS)
+Sign and Basis Invariance:
+Spectral Clustering: Applying spectral clustering to the Fiedler vectors allows us to identify natural partitions in the graph. By comparing these partitions using the Jaccard similarity, we focus on the relative positions of nodes, ensuring basis invariance.
+Jaccard Similarity: This index measures the similarity of partitions, accounting for sign differences in the Fiedler vector components, which indicate the side of the partition a piece belongs to.
+Dynamic Potential Similarity (DPS)
+Sign and Basis Invariance:
+Spectral Radius: Considering the spectral radius (largest eigenvalue) as an indicator of overall activity provides a basis-invariant measure of dynamic potential.
+Eigenvector Correlation: Calculating the correlation coefficient between eigenvectors associated with the largest eigenvalues captures the similarity in dynamic potential, accounting for sign differences.
+Positional Stability Similarity (PSS)
+Sign and Basis Invariance:
+Modularity Analysis: Using modularity indices to assess the stability of piece formations provides a basis-invariant measure of positional stability. This focuses on the relative stability of clusters rather than absolute values.
+Hamming Distance: Comparing the sign patterns of eigenvectors associated with the smallest eigenvalues using Hamming distance captures stability differences, accounting for sign variations.
+Cross-Connectivity Balance Similarity (CCBS)
+Sign and Basis Invariance:
+Spectral Distance: Calculating the spectral distance between eigenvalue distributions provides a basis-invariant measure of cross-connectivity balance.
+Earth Mover's Distance (EMD): Using EMD to compare normalized eigenvalue distributions captures differences in cross-connectivity while ensuring basis invariance.
