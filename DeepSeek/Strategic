@@ -1,0 +1,330 @@
+# Install dependencies
+!pip install python-chess networkx stockfish numpy scipy
+
+# Imports
+import chess
+import networkx as nx
+import numpy as np
+from stockfish import Stockfish
+from scipy.sparse.csgraph import laplacian
+from scipy.sparse.linalg import eigsh
+import random
+
+# Chess Position Category (CPos)
+class ChessPosition:
+    def __init__(self, fen=chess.STARTING_FEN):
+        self.board = chess.Board(fen)
+    
+    def morphism(self, move):
+        """Legal move (morphism) between positions."""
+        new_board = self.board.copy()
+        new_board.push(move)
+        return ChessPosition(new_board.fen())
+    
+    def __eq__(self, other):
+        return self.board.fen() == other.board.fen()
+
+# Stockfish Evaluator
+class StockfishEvaluator:
+    def __init__(self, stockfish_path):
+        self.engine = Stockfish(stockfish_path)
+    
+    def evaluate(self, position):
+        self.engine.set_fen_position(position.board.fen())
+        return self.engine.get_evaluation()
+
+# Milestone Detection (for Strategic Graphs)
+def detect_milestones(position):
+    """Detect strategic milestones in a position."""
+    board = position.board
+    milestones = []
+
+    # Passed pawns
+    for square in chess.SQUARES:
+        piece = board.piece_at(square)
+        if piece and piece.piece_type == chess.PAWN:
+            if is_passed_pawn(board, square, piece.color):
+                milestones.append("passed_pawn")
+
+    # Open files
+    for file in range(8):
+        if is_open_file(board, file):
+            milestones.append("open_file")
+
+    # King safety
+    if is_king_safe(board, board.turn):
+        milestones.append("king_safety")
+
+    # Central control
+    if is_central_control(board, board.turn):
+        milestones.append("central_control")
+
+    return milestones
+
+def is_passed_pawn(board, square, color):
+    """Check if a pawn is a passed pawn."""
+    file = chess.square_file(square)
+    rank = chess.square_rank(square)
+    opponent_color = not color
+
+    # Check if there are no opposing pawns in front or adjacent files
+    for f in [file - 1, file, file + 1]:
+        if f < 0 or f > 7:
+            continue
+        for r in range(rank + 1, 8) if color == chess.WHITE else range(rank - 1, -1, -1):
+            sq = chess.square(f, r)
+            if board.piece_at(sq) and board.piece_at(sq).piece_type == chess.PAWN and board.color_at(sq) == opponent_color:
+                return False
+    return True
+
+def is_open_file(board, file):
+    """Check if a file is open (no pawns of either color)."""
+    for rank in range(8):
+        square = chess.square(file, rank)
+        piece = board.piece_at(square)
+        if piece and piece.piece_type == chess.PAWN:
+            return False
+    return True
+
+def is_king_safe(board, color):
+    """Check if the king is castled with a pawn shield."""
+    king_square = board.king(color)
+    if king_square is None:
+        return False
+
+    # Check castling status
+    if color == chess.WHITE:
+        castled = board.has_castling_rights(chess.WHITE_KSIDE) or board.has_castling_rights(chess.WHITE_QSIDE)
+    else:
+        castled = board.has_castling_rights(chess.BLACK_KSIDE) or board.has_castling_rights(chess.BLACK_QSIDE)
+
+    # Check pawn shield
+    pawn_shield = 0
+    for file_offset in [-1, 0, 1]:
+        shield_square = king_square + 8 * (1 if color == chess.WHITE else -1) + file_offset
+        if 0 <= shield_square < 64:
+            piece = board.piece_at(shield_square)
+            if piece and piece.piece_type == chess.PAWN and piece.color == color:
+                pawn_shield += 1
+
+    return castled and pawn_shield >= 2
+
+def is_central_control(board, color):
+    """Check control over central squares (d4/d5/e4/e5)."""
+    central_squares = [chess.D4, chess.D5, chess.E4, chess.E5]
+    control = 0
+    for square in central_squares:
+        if board.is_attacked_by(color, square):
+            control += 1
+    return control >= 3
+
+# Graph Construction Functors
+class ControlGraphConstructor:
+    """Build a control graph (spatial dominance)."""
+    def __call__(self, position):
+        G = nx.Graph()
+        board = position.board
+        for square in chess.SQUARES:
+            piece = board.piece_at(square)
+            if piece:
+                G.add_node(square, piece=piece.symbol())
+                for move in board.attacks(square):
+                    if board.piece_at(move):
+                        G.add_edge(square, move)
+        return G
+
+class ThreatGraphConstructor:
+    """Build a threat graph (captures and latent threats)."""
+    def __call__(self, position):
+        G = nx.DiGraph()
+        board = position.board
+        for square in chess.SQUARES:
+            attacker = board.piece_at(square)
+            if attacker:
+                for victim_sq in board.attacks(square):
+                    victim = board.piece_at(victim_sq)
+                    if victim and attacker.color != victim.color:
+                        G.add_edge(square, victim_sq)
+        return G
+
+class StrategicGraphConstructor:
+    """Build a strategic graph (long-term plans and milestones)."""
+    def __init__(self, evaluator):
+        self.evaluator = evaluator
+    
+    def __call__(self, position):
+        G = nx.DiGraph()
+        milestones = detect_milestones(position)
+        
+        # Add nodes with weights
+        for milestone in milestones:
+            G.add_node(milestone, weight=1.0)  # Default weight
+        
+        # Simulate transitions and add edges
+        for move in position.board.legal_moves:
+            new_position = position.morphism(move)
+            new_milestones = detect_milestones(new_position)
+            
+            # Compute evaluation delta
+            current_eval = self.evaluator(position)
+            new_eval = self.evaluator(new_position)
+            delta = normalize_eval(new_eval) - normalize_eval(current_eval)
+            
+            # Add edges for transitions
+            for m1 in milestones:
+                for m2 in new_milestones:
+                    if m1 != m2:
+                        if G.has_edge(m1, m2):
+                            G[m1][m2]['weight'] += delta
+                        else:
+                            G.add_edge(m1, m2, weight=delta)
+        
+        return G
+
+class HybridGraphConstructor:
+    """Build a hybrid graph (combines control, threat, and strategic graphs)."""
+    def __init__(self, control_functor, threat_functor, strategic_functor):
+        self.control_functor = control_functor
+        self.threat_functor = threat_functor
+        self.strategic_functor = strategic_functor
+    
+    def __call__(self, position):
+        control_graph = self.control_functor(position)
+        threat_graph = self.threat_functor(position)
+        strategic_graph = self.strategic_functor(position)
+        G = nx.compose_all([control_graph, threat_graph, strategic_graph])
+        return G
+
+# Algebraic Analysis of Graphs
+def algebraic_control_score(graph):
+    """Compute control score using Laplacian spectrum."""
+    L = nx.laplacian_matrix(graph).toarray().astype(float)
+    eigenvalues, eigenvectors = np.linalg.eigh(L)
+    lambda2 = eigenvalues[1]  # Second smallest eigenvalue
+    fiedler_vector = eigenvectors[:, 1]
+    centrality = np.max(np.abs(fiedler_vector))  # Critical node
+    return lambda2 + centrality
+
+def algebraic_threat_score(graph):
+    """Compute threat score using adjacency spectrum."""
+    A = nx.adjacency_matrix(graph).toarray().astype(float)
+    eigenvalues, eigenvectors = np.linalg.eigh(A)
+    lambda_max = np.max(eigenvalues)  # Spectral radius
+    eigen_centrality = np.abs(eigenvectors[:, np.argmax(eigenvalues)]).max()
+    return lambda_max + eigen_centrality
+
+def algebraic_strategic_score(graph):
+    """Compute strategic score using normalized Laplacian spectrum."""
+    L_norm = nx.normalized_laplacian_matrix(graph).toarray().astype(float)
+    eigenvalues, _ = np.linalg.eigh(L_norm)
+    lambda1 = eigenvalues[0]  # Smallest eigenvalue
+    betweenness = nx.betweenness_centrality(graph)[np.argmax(betweenness.values())]
+    return lambda1 + betweenness
+
+def algebraic_hybrid_score(graphs):
+    """Compute hybrid score using tensor product graph."""
+    tensor_graph = nx.tensor_product(graphs[0], graphs[1])
+    for g in graphs[2:]:
+        tensor_graph = nx.tensor_product(tensor_graph, g)
+    A = nx.adjacency_matrix(tensor_graph).toarray().astype(float)
+    eigenvalues, _ = np.linalg.eigh(A)
+    return np.max(eigenvalues)
+
+# Category Theory Integration
+class GraphFunctor:
+    """Functor mapping positions to graphs."""
+    def __init__(self, constructor):
+        self.constructor = constructor
+    
+    def __call__(self, position):
+        return self.constructor(position)
+
+class RefinementFunctor:
+    """Functor refining graphs to scores."""
+    def __init__(self, score_function):
+        self.score_function = score_function
+    
+    def __call__(self, graph):
+        return self.score_function(graph)
+
+def are_positions_similar(pos1, pos2, graph_functors, refinement_functors, threshold=0.1):
+    """Check if two positions are similar across all graph types."""
+    scores1 = []
+    scores2 = []
+    for graph_functor, refinement_functor in zip(graph_functors, refinement_functors):
+        G1 = graph_functor(pos1)
+        G2 = graph_functor(pos2)
+        score1 = refinement_functor(G1)
+        score2 = refinement_functor(G2)
+        scores1.append(score1)
+        scores2.append(score2)
+    
+    # Compare scores and evaluations
+    scores_close = all(np.isclose(s1, s2, atol=threshold) for s1, s2 in zip(scores1, scores2))
+    return scores_close
+
+# Utility Functions
+def normalize_eval(eval_result):
+    """Normalize Stockfish evaluation to [-1, 1]."""
+    if eval_result['type'] == 'cp':
+        return eval_result['value'] / 100.0
+    else:
+        return 1.0 if eval_result['value'] > 0 else -1.0
+
+def generate_random_position(depth=10):
+    """Generate a random chess position by playing `depth` random moves."""
+    board = chess.Board()
+    for _ in range(depth):
+        moves = list(board.legal_moves)
+        if not moves:
+            break
+        move = random.choice(moves)
+        board.push(move)
+    return ChessPosition(board.fen())
+
+def generate_random_positions(num_positions=100, depth=10):
+    """Generate a list of random chess positions."""
+    return [generate_random_position(depth) for _ in range(num_positions)]
+
+# Example Workflow
+if __name__ == "__main__":
+    # Initialize Stockfish
+    stockfish_path = "/path/to/stockfish"  # Update this
+    evaluator = StockfishEvaluator(stockfish_path)
+
+    # Define graph constructors
+    control_constructor = ControlGraphConstructor()
+    threat_constructor = ThreatGraphConstructor()
+    strategic_constructor = StrategicGraphConstructor(evaluator)
+    hybrid_constructor = HybridGraphConstructor(control_constructor, threat_constructor, strategic_constructor)
+
+    # Define functors
+    control_functor = GraphFunctor(control_constructor)
+    threat_functor = GraphFunctor(threat_constructor)
+    strategic_functor = GraphFunctor(strategic_constructor)
+    hybrid_functor = GraphFunctor(hybrid_constructor)
+
+    # Define refinement functors
+    control_refinement = RefinementFunctor(algebraic_control_score)
+    threat_refinement = RefinementFunctor(algebraic_threat_score)
+    strategic_refinement = RefinementFunctor(algebraic_strategic_score)
+    hybrid_refinement = RefinementFunctor(algebraic_hybrid_score)
+
+    # Generate random positions
+    positions = generate_random_positions(num_positions=100, depth=10)
+
+    # Find similar pairs
+    similar_pairs = []
+    for i in range(len(positions)):
+        for j in range(i + 1, len(positions)):
+            if are_positions_similar(
+                positions[i], positions[j],
+                [control_functor, threat_functor, strategic_functor, hybrid_functor],
+                [control_refinement, threat_refinement, strategic_refinement, hybrid_refinement]
+            ):
+                similar_pairs.append((positions[i], positions[j]))
+
+    # Output results
+    print(f"Found {len(similar_pairs)} similar pairs:")
+    for pair in similar_pairs:
+        print(f"Pair:\n{pair[0].board.fen()}\n{pair[1].board.fen()}\n")
