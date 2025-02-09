@@ -7,9 +7,14 @@ This module constructs a positional graph that integrates chess theory:
  - Zone Assignment: Each board square is assigned a zone ("center", "kingside", "queenside")
    based on standard chess–theoretic definitions.
  - Additional Invariants: Composite invariants are computed including pawn island count,
-   passed pawn score, space score, shield index, attackers proximity, and spectral invariants.
+   passed pawn score, space score, shield index, attackers' proximity, and spectral invariants.
  - Material values are incorporated into influence and control computations.
 
+Modifications:
+ 1. Results for both white and black are computed individually.
+ 2. The king square is detected for every board position and king safety metrics (shield index,
+    attackers' proximity) are computed accordingly.
+    
 It uses python‑chess for board representation, NetworkX for graph construction,
 and matplotlib for visualization.
 """
@@ -485,7 +490,8 @@ class PositionalGraph:
 
     def compute_composite_invariants(self, color=chess.WHITE):
         """
-        Compute a composite invariant vector (as a dictionary) that aggregates:
+        Compute a composite invariant vector (as a dictionary) for the given color.
+        This aggregates:
           - Pawn island count
           - Passed pawn score
           - Space score
@@ -493,12 +499,11 @@ class PositionalGraph:
           - Attackers' proximity (for the king)
           - Spectral invariants (Laplacian spectrum, Fiedler value, eigenvector centrality, clustering)
           
-        For king safety metrics, the king square is determined from the board.
+        The king square is detected automatically; if not found, defaults to e1 (white) or e8 (black).
         """
         king_sq = self.board.king(color)
         if king_sq is None:
-            # Default to "e1" if not found.
-            king_sq = chess.parse_square("e1")
+            king_sq = chess.parse_square("e1") if color == chess.WHITE else chess.parse_square("e8")
         invariants = {
             "pawn_island_count": self.compute_pawn_island_count(),
             "passed_pawn_score": self.compute_passed_pawn_score(),
@@ -508,6 +513,17 @@ class PositionalGraph:
             "spectral_invariants": self.compute_spectral_invariants()
         }
         return invariants
+
+    def compute_all_composite_invariants(self):
+        """
+        Compute composite invariants for both white and black individually.
+        
+        Returns a dictionary with keys "white" and "black", each mapping to its composite invariant vector.
+        """
+        return {
+            "white": self.compute_composite_invariants(color=chess.WHITE),
+            "black": self.compute_composite_invariants(color=chess.BLACK)
+        }
 
     # ------------------------------------------------------------------------------
     # Graph Visualization
@@ -571,17 +587,20 @@ if __name__ == "__main__":
     # Compute and print individual metrics.
     print("Pawn Island Count:", pos_graph.compute_pawn_island_count())
     print("Passed Pawn Score:", pos_graph.compute_passed_pawn_score())
-    print("Space Score:", pos_graph.compute_space_score(color=chess.WHITE))
+    print("Space Score (White):", pos_graph.compute_space_score(color=chess.WHITE))
     
     # For king safety metrics, use the white king's starting square.
     white_king_sq = chess.parse_square("e1")
     print("Shield Index (White King):", pos_graph.compute_shield_index(white_king_sq, color=chess.WHITE))
     print("Attackers Proximity (White King):", pos_graph.compute_attackers_proximity(white_king_sq, color=chess.WHITE))
     
-    # Compute and print the composite invariants.
-    composite = pos_graph.compute_composite_invariants(color=chess.WHITE)
-    print("Composite Invariants:")
-    for key, value in composite.items():
+    # Compute and print composite invariants for both white and black.
+    all_invariants = pos_graph.compute_all_composite_invariants()
+    print("Composite Invariants for White:")
+    for key, value in all_invariants["white"].items():
+        print(f"  {key}: {value}")
+    print("Composite Invariants for Black:")
+    for key, value in all_invariants["black"].items():
         print(f"  {key}: {value}")
     
     # Visualize the enhanced positional graph.
