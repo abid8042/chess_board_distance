@@ -2,20 +2,30 @@
 """
 Enhanced Positional Graph Implementation for Deep Chess Analysis
 
-This module constructs a positional graph that integrates chess theory:
- - Pawn Structure: Each pawn is labeled with roles (isolated, backward, passed, chain member).
+Features:
+ - Pawn Structure: Each pawn is annotated with roles (isolated, backward, passed, chain member).
  - Zone Assignment: Each board square is assigned a zone ("center", "kingside", "queenside")
-   based on standard chess–theoretic definitions.
- - Additional Invariants: Composite invariants are computed including pawn island count,
-   passed pawn score, space score, shield index, attackers' proximity, and spectral invariants.
- - Material values are incorporated into influence and control computations.
- - Legal Move Enforcement: Influence edges are built using only legal moves.
- - Results for both white and black are computed separately; the king square is detected automatically.
- - **Refined Clustering:** In addition to the overall clustering coefficient, an influence‐specific 
-   clustering coefficient is computed from the subgraph of influence edges.
-
-It uses python‑chess for board representation, NetworkX for graph construction,
-and matplotlib for visualization.
+   based on a chess–theoretic function.
+ - Additional Invariants: Composite invariants are computed including:
+     * Pawn island count
+     * Passed pawn score
+     * Space score
+     * Shield index
+     * Attackers' proximity
+     * Spectral invariants computed on the overall graph (e.g., Fiedler value, eigenvector centrality, clustering)
+     * Influence subgraph invariants (built solely from legal moves using piece-specific distances) such as:
+         - Influence Fiedler Value
+         - Global Efficiency
+         - Average Degree
+         - Average Closeness
+         - Average Betweenness
+         - Average Clustering
+ - Legal Move Enforcement: Influence edges are created only if a legal move exists between two squares.
+ - Piece-Specific Distance: All distances are computed using a piece-specific distance measure.
+ - Material weights are removed so that the graph reflects pure positional connectivity.
+ - A multilayered approach distinguishes latent (static) and dynamic (legal-move) connectivity.
+    
+It uses python‑chess for board representation, NetworkX for graph construction, and Matplotlib for visualization.
 """
 
 import chess
@@ -24,47 +34,74 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # ------------------------------------------------------------------------------
-# Global Material Values Dictionary
+# Piece-Specific Distance Measure
 # ------------------------------------------------------------------------------
-MATERIAL_VALUES = {
-    'P': 1, 'p': 1,
-    'N': 3, 'n': 3,
-    'B': 3, 'b': 3,
-    'R': 5, 'r': 5,
-    'Q': 9, 'q': 9,
-    'K': 0, 'k': 0  # The king's material value is set to 0.
-}
+def piece_distance(piece_symbol, from_square, to_square):
+    """
+    Compute a distance measure between two squares, specific to the piece type.
+    
+    Inputs:
+      - piece_symbol: e.g., 'N', 'B', etc.
+      - from_square, to_square: square names (e.g., "e4", "h8").
+    
+    Returns:
+      A numerical distance value.
+      
+    Rules:
+      - Knight ('N'): Euclidean distance.
+      - Bishop ('B'): Chebyshev distance (max(|dx|, |dy|)).
+      - Rook ('R'): Manhattan distance.
+      - Queen ('Q'): If diagonal (dx == dy) use Chebyshev; otherwise, Manhattan.
+      - King ('K'): 1 (always moves one square).
+      - Pawn ('P'): Manhattan distance.
+    """
+    coord1 = square_to_coord(from_square)
+    coord2 = square_to_coord(to_square)
+    dx = abs(coord1[0] - coord2[0])
+    dy = abs(coord1[1] - coord2[1])
+    piece_type = piece_symbol.upper()
+    
+    if piece_type == 'N':
+        return np.sqrt(dx**2 + dy**2)
+    elif piece_type == 'B':
+        return max(dx, dy)
+    elif piece_type == 'R':
+        return dx + dy
+    elif piece_type == 'Q':
+        if dx == dy:
+            return max(dx, dy)
+        else:
+            return dx + dy
+    elif piece_type == 'K':
+        return 1
+    elif piece_type == 'P':
+        return dx + dy
+    else:
+        return dx + dy
 
 # ------------------------------------------------------------------------------
 # Helper Functions for Geometry and Control
 # ------------------------------------------------------------------------------
-
 def square_to_coord(square_name):
-    """
-    Convert a square name (e.g., 'e4') into a (file, rank) tuple (0-indexed).
-    """
     file = ord(square_name[0]) - ord('a')
     rank = int(square_name[1]) - 1
     return (file, rank)
 
 def manhattan_distance(coord1, coord2):
-    """
-    Compute the Manhattan distance between two (file, rank) tuples.
-    """
     return abs(coord1[0] - coord2[0]) + abs(coord1[1] - coord2[1])
 
-def control_value(square1, square2):
+def control_value(square1, square2, board):
     """
-    A basic control value between two squares.
-    (This function can be refined further.)
+    Return 1 if both squares (given by their names) are occupied on the provided board;
+    otherwise return 0.
     """
-    return 1
+    if board.piece_at(chess.parse_square(square1)) is not None and \
+       board.piece_at(chess.parse_square(square2)) is not None:
+        return 1
+    else:
+        return 0
 
 def square_weight(square):
-    """
-    Assign a weight to a board square based on its strategic importance.
-    The four central squares (d4, d5, e4, e5) receive a higher weight.
-    """
     central_squares = {"d4", "d5", "e4", "e5"}
     if square in central_squares:
         return 2.0
@@ -73,39 +110,17 @@ def square_weight(square):
         return 0.5
     return 1.0
 
-def control_factor(board, square, color=chess.WHITE):
+def control_factor(board, square, color):
     """
-    Compute a control factor for a square.
-    Instead of simply counting attackers, we sum the material values of all
-    attacking pieces from the given side.
+    Count the number of attackers on the given square from the specified color.
     """
     attackers = board.attackers(color, chess.parse_square(square))
-    factor = 0
-    for sq in attackers:
-        piece = board.piece_at(sq)
-        if piece is not None:
-            factor += MATERIAL_VALUES.get(piece.symbol(), 1)
-    return factor
+    return len(attackers)
 
 # ------------------------------------------------------------------------------
 # Pawn Role Determination Using Chess Theory
 # ------------------------------------------------------------------------------
-
 def get_pawn_roles(board, square):
-    """
-    Determine the roles of a pawn on a given square based on chess theory.
-    
-    Roles considered:
-      - isolated: No friendly pawn exists on any adjacent file.
-      - passed: No enemy pawn exists on the same or adjacent files ahead (for white)
-                or behind (for black) of the pawn.
-      - chain_member: A friendly pawn supports it diagonally from behind.
-      - backward: (Heuristic) No friendly pawn exists on an adjacent file on a rank
-                  equal to or ahead (for white; reversed for black) of the pawn.
-                  
-    Returns:
-        A list of role strings (e.g., ["isolated", "passed"]).
-    """
     roles = []
     sq_index = chess.parse_square(square)
     piece = board.piece_at(sq_index)
@@ -115,14 +130,13 @@ def get_pawn_roles(board, square):
     file_index = chess.square_file(sq_index)
     rank_index = chess.square_rank(sq_index)
     
-    # Determine adjacent file indices.
     adjacent_files = []
     if file_index > 0:
         adjacent_files.append(file_index - 1)
     if file_index < 7:
         adjacent_files.append(file_index + 1)
     
-    # --- Isolated Pawn ---
+    # Isolated Pawn:
     isolated = True
     for other_sq in chess.SQUARES:
         if other_sq == sq_index:
@@ -136,7 +150,7 @@ def get_pawn_roles(board, square):
     if isolated:
         roles.append("isolated")
     
-    # --- Passed Pawn ---
+    # Passed Pawn:
     passed = True
     if color == chess.WHITE:
         for other_sq in chess.SQUARES:
@@ -147,7 +161,7 @@ def get_pawn_roles(board, square):
                 if other_file in ([file_index] + adjacent_files) and other_rank > rank_index:
                     passed = False
                     break
-    else:  # Black pawn
+    else:
         for other_sq in chess.SQUARES:
             other_piece = board.piece_at(other_sq)
             if other_piece is not None and other_piece.symbol().lower() == 'p' and other_piece.color != color:
@@ -159,7 +173,7 @@ def get_pawn_roles(board, square):
     if passed:
         roles.append("passed")
     
-    # --- Chain Member ---
+    # Chain Member:
     chain_member = False
     if color == chess.WHITE:
         if rank_index > 0:
@@ -188,7 +202,7 @@ def get_pawn_roles(board, square):
     if chain_member:
         roles.append("chain_member")
     
-    # --- Backward Pawn ---
+    # Backward Pawn:
     backward = False
     if color == chess.WHITE:
         support_found = False
@@ -226,24 +240,8 @@ def get_pawn_roles(board, square):
 # ------------------------------------------------------------------------------
 # Zone Assignment Using Chess Theory
 # ------------------------------------------------------------------------------
-
 def get_zone(square):
-    """
-    Determine the zone of a board square based on standard chess theory.
-    
-    Logic:
-      - "center": Squares d4, d5, e4, and e5.
-      - "kingside": If the file (0-indexed) is 4 or greater (i.e., files e-h) and not in "center".
-      - "queenside": Otherwise (files a-d, not in "center").
-    
-    Args:
-        square (str): The square name (e.g., "e4").
-    
-    Returns:
-        str: A zone label: "center", "kingside", or "queenside".
-    """
     file_index, rank_index = square_to_coord(square)
-    # Center: d4, d5, e4, e5 -> files 3 and 4, ranks 3 and 4 (0-indexed)
     if file_index in [3, 4] and rank_index in [3, 4]:
         return "center"
     elif file_index >= 4:
@@ -254,51 +252,42 @@ def get_zone(square):
 # ------------------------------------------------------------------------------
 # Main Class: PositionalGraph
 # ------------------------------------------------------------------------------
-
 class PositionalGraph:
     def __init__(self, board, zones=None):
         """
         Initialize the positional graph using a python‑chess Board instance.
-        Optionally, a dictionary of zones mapping zone names to sets of square names can be provided.
-        If not provided, the default is to assign zones using get_zone.
+        Optionally, a dictionary mapping zone names to sets of square names may be provided.
+        If not, zones are assigned using get_zone().
         """
         self.board = board
         self.graph = nx.Graph()
         self.board_squares = [chess.square_name(sq) for sq in chess.SQUARES]
-        # Build zones automatically if not provided.
         if zones is None:
             self.zones = {"center": set(), "kingside": set(), "queenside": set()}
             for square in self.board_squares:
                 zone_label = get_zone(square)
+                if zone_label not in self.zones:
+                    self.zones[zone_label] = set()
                 self.zones[zone_label].add(square)
         else:
             self.zones = zones
         self._build_graph()
 
     def _build_graph(self):
-        """
-        Construct the complete positional graph with nodes and all edge types.
-        """
+        """Construct the complete positional graph with nodes and all edge types."""
         self._add_board_nodes()
         self._add_pawn_nodes()
         self._add_zone_nodes()
         self._add_adjacency_edges()
         self._add_pawn_support_edges()
-        self._add_influence_edges()
+        self._add_influence_edges()  # Build influence edges using the current board state.
         self._add_zone_edges()
 
     def _add_board_nodes(self):
-        """
-        Add nodes for each board square.
-        """
         for square in self.board_squares:
             self.graph.add_node(square, type="square")
 
     def _add_pawn_nodes(self):
-        """
-        Add pawn nodes with annotations about their structural roles.
-        Uses get_pawn_roles to determine roles.
-        """
         for square in self.board_squares:
             sq = chess.parse_square(square)
             piece = self.board.piece_at(sq)
@@ -308,29 +297,21 @@ class PositionalGraph:
                 self.graph.add_node(pawn_node, type="pawn", roles=roles, square=square)
 
     def _add_zone_nodes(self):
-        """
-        Add nodes for each zone defined in self.zones.
-        """
         for zone_name in self.zones.keys():
             self.graph.add_node(zone_name, type="zone")
 
     def _add_adjacency_edges(self):
-        """
-        Add edges between board squares that are adjacent (Manhattan distance = 1).
-        """
         for i, s1 in enumerate(self.board_squares):
             for s2 in self.board_squares[i+1:]:
                 coord1 = square_to_coord(s1)
                 coord2 = square_to_coord(s2)
                 if manhattan_distance(coord1, coord2) == 1:
-                    weight = control_value(s1, s2) * (1 + manhattan_distance(coord1, coord2))
-                    self.graph.add_edge(s1, s2, type="adjacency", weight=weight)
+                    cv = control_value(s1, s2, self.board)
+                    if cv == 1:
+                        weight = cv * (1 + manhattan_distance(coord1, coord2))
+                        self.graph.add_edge(s1, s2, type="adjacency", weight=weight)
 
     def _add_pawn_support_edges(self):
-        """
-        Add edges representing support between pawns.
-        For each pawn, add an edge from the pawn node to the square it supports.
-        """
         for square in self.board_squares:
             sq = chess.parse_square(square)
             piece = self.board.piece_at(sq)
@@ -344,72 +325,95 @@ class PositionalGraph:
                     if 0 <= f < 8 and 0 <= r < 8:
                         support_square = chr(ord('a') + f) + str(r + 1)
                         pawn_node = f"pawn_{square}"
-                        weight = control_value(square, support_square) * (1 + manhattan_distance((file, rank), (f, r)))
-                        self.graph.add_edge(pawn_node, support_square, type="pawn_support", weight=weight)
+                        distance = piece_distance('P', square, support_square)
+                        w = control_value(square, support_square, self.board)
+                        if w == 1:
+                            weight = w * (1 + distance)
+                            self.graph.add_edge(pawn_node, support_square, type="pawn_support", weight=weight)
 
     def _add_influence_edges(self):
         """
-        For each piece on the board, add influence edges from the piece's square
-        to each square it legally moves to. The weight is multiplied by the piece's material value.
-        
-        This method uses board.generate_legal_moves() to ensure that only legal moves are included.
+        For each piece on the board, add influence edges from the piece's square to every other square
+        if a legal move exists between them. The weight is computed as (1 + piece_distance).
         """
-        # Generate all legal moves once.
         legal_moves = list(self.board.generate_legal_moves())
-        # Group moves by the from_square.
-        moves_from = {}
-        for move in legal_moves:
-            moves_from.setdefault(move.from_square, []).append(move)
-        
-        for square in self.board_squares:
-            sq = chess.parse_square(square)
-            piece = self.board.piece_at(sq)
-            if piece is not None:
-                material_weight = MATERIAL_VALUES.get(piece.symbol(), 1)
-                moves = moves_from.get(sq, [])
-                for move in moves:
-                    target = chess.square_name(move.to_square)
-                    coord1 = square_to_coord(square)
-                    coord2 = square_to_coord(target)
-                    weight = material_weight * (1 + manhattan_distance(coord1, coord2))
-                    self.graph.add_edge(square, target, type="influence", weight=weight)
+        # For every pair of squares (s1, s2), check if a legal move exists from s1 to s2.
+        for s1 in self.board_squares:
+            from_sq = chess.parse_square(s1)
+            piece = self.board.piece_at(from_sq)
+            if piece is None:
+                continue
+            for s2 in self.board_squares:
+                if s1 == s2:
+                    continue
+                to_sq = chess.parse_square(s2)
+                # Check if at least one legal move exists from s1 to s2.
+                legal = False
+                for move in legal_moves:
+                    if move.from_square == from_sq and move.to_square == to_sq:
+                        legal = True
+                        break
+                if legal:
+                    weight = 1 + piece_distance(piece.symbol(), s1, s2)
+                    self.graph.add_edge(s1, s2, type="influence", weight=weight)
 
     def _add_zone_edges(self):
         """
-        Connect each board square to its corresponding zone node.
+        Add an edge between each occupied square and its corresponding zone node.
         """
         for square in self.board_squares:
-            for zone_name, zone_squares in self.zones.items():
-                if square in zone_squares:
-                    weight = control_value(square, zone_name)
-                    self.graph.add_edge(square, zone_name, type="zone", weight=weight)
+            if self.board.piece_at(chess.parse_square(square)) is not None:
+                zone_label = get_zone(square)
+                self.graph.add_edge(square, zone_label, type="zone", weight=1)
+
+    # ------------------------------------------------------------------------------
+    # Influence Subgraph Computation by Color
+    # ------------------------------------------------------------------------------
+    def compute_influence_subgraph_by_color(self, color):
+        """
+        Compute the influence subgraph for a given color.
+        For each pair of squares, check if a legal move exists from the square (if occupied) to the other.
+        Only then add an edge.
+        """
+        board_copy = self.board.copy(stack=False)
+        board_copy.turn = color
+        legal_moves = list(board_copy.generate_legal_moves())
+        G_inf = nx.Graph()
+        G_inf.add_nodes_from(self.graph.nodes(data=True))
+        for s1 in self.board_squares:
+            from_sq = chess.parse_square(s1)
+            piece = board_copy.piece_at(from_sq)
+            if piece is None:
+                continue
+            for s2 in self.board_squares:
+                if s1 == s2:
+                    continue
+                to_sq = chess.parse_square(s2)
+                legal = False
+                for move in legal_moves:
+                    if move.from_square == from_sq and move.to_square == to_sq:
+                        legal = True
+                        break
+                if legal:
+                    weight = 1 + piece_distance(piece.symbol(), s1, s2)
+                    G_inf.add_edge(s1, s2, type="influence", weight=weight)
+        return G_inf
 
     # ------------------------------------------------------------------------------
     # Invariant Computation Functions
     # ------------------------------------------------------------------------------
-
     def compute_pawn_island_count(self):
-        """
-        Compute the number of pawn islands (disconnected pawn groups).
-        """
         pawn_nodes = [n for n, attr in self.graph.nodes(data=True) if attr.get("type") == "pawn"]
         pawn_subgraph = self.graph.subgraph(pawn_nodes)
         islands = list(nx.connected_components(pawn_subgraph))
         return len(islands)
 
     def compute_passed_pawn_score(self):
-        """
-        Compute a heuristic passed pawn score.
-        For each pawn that is considered "passed" (based on a rank threshold),
-        add a score based on its distance from promotion.
-        (This is a placeholder; a full implementation would check for enemy pawn blockages.)
-        """
         score = 0.0
         for node, attr in self.graph.nodes(data=True):
             if attr.get("type") == "pawn":
                 square = attr.get("square")
                 file, rank = square_to_coord(square)
-                # For simplicity, assume a pawn on the 5th rank or beyond is "passed"
                 if rank >= 4:
                     pawn = self.board.piece_at(chess.parse_square(square))
                     if pawn and pawn.color == chess.WHITE:
@@ -420,23 +424,15 @@ class PositionalGraph:
         return score
 
     def compute_space_score(self, color=chess.WHITE):
-        """
-        Compute the overall space control score for key squares.
-        Sums over the "center" zone using the square weight and control factor.
-        """
         central_squares = self.zones.get("center", set())
         score = 0.0
         for square in central_squares:
             w = square_weight(square)
-            ctrl = control_factor(self.board, square, color=color)
+            ctrl = control_factor(self.board, square, color)
             score += w * ctrl
         return score
 
     def compute_shield_index(self, king_square, color=chess.WHITE):
-        """
-        Compute the shield index for the king.
-        Counts the number of friendly pawn nodes in the immediate forward zone.
-        """
         king_square_name = chess.square_name(king_square)
         king_file, king_rank = square_to_coord(king_square_name)
         shield_count = 0
@@ -452,10 +448,6 @@ class PositionalGraph:
         return shield_count
 
     def compute_attackers_proximity(self, king_square, color=chess.WHITE):
-        """
-        Compute the attackers' proximity metric for the king.
-        Sums the inverse Manhattan distances from enemy pieces to the king.
-        """
         king_coord = square_to_coord(chess.square_name(king_square))
         proximity = 0.0
         enemy_color = not color
@@ -464,62 +456,72 @@ class PositionalGraph:
             piece = self.board.piece_at(sq)
             if piece is not None and piece.color == enemy_color:
                 dist = manhattan_distance(king_coord, square_to_coord(square))
-                proximity += 1.0 / (dist + 0.1)  # Avoid division by zero
+                proximity += 1.0 / (dist + 0.1)
         return proximity
 
     # --- Spectral Invariants ---
-    def compute_spectral_invariants(self):
-        """
-        Compute spectral invariants of the positional graph.
-        
-        Returns a dictionary with:
-          - laplacian_spectrum: Sorted list of eigenvalues of the Laplacian matrix.
-          - fiedler_value: The second smallest eigenvalue.
-          - eigenvector_centrality: A dictionary of eigenvector centrality values.
-          - average_eigenvector_centrality: The average of eigenvector centrality.
-          - average_clustering: The average clustering coefficient of the graph.
-          - average_influence_clustering: The average clustering coefficient computed on the subgraph
-                                          containing only influence edges.
-        """
+    def compute_spectral_invariants(self, color=None):
         spectral = {}
-        # Compute the Laplacian matrix
         L = nx.laplacian_matrix(self.graph, weight="weight").todense()
-        # Use numpy.linalg.eigvalsh since L is symmetric
         eigenvalues = np.linalg.eigvalsh(L)
         eigenvalues_sorted = sorted(eigenvalues.tolist())
         spectral["laplacian_spectrum"] = eigenvalues_sorted
         spectral["fiedler_value"] = eigenvalues_sorted[1] if len(eigenvalues_sorted) > 1 else None
-        
-        # Compute eigenvector centrality
+
         ev_centrality = nx.eigenvector_centrality(self.graph, weight="weight", max_iter=1000)
         spectral["eigenvector_centrality"] = ev_centrality
         spectral["average_eigenvector_centrality"] = np.mean(list(ev_centrality.values()))
-        
-        # Compute average clustering coefficient for the whole graph
+
         spectral["average_clustering"] = nx.average_clustering(self.graph, weight="weight")
-        
-        # Compute average clustering for the influence subgraph.
-        influence_edges = [(u, v) for u, v, d in self.graph.edges(data=True) if d.get("type") == "influence"]
-        if influence_edges:
-            influence_subgraph = self.graph.edge_subgraph(influence_edges)
-            spectral["average_influence_clustering"] = nx.average_clustering(influence_subgraph, weight="weight")
+
+        if color is not None:
+            G_inf = self.compute_influence_subgraph_by_color(color)
+            if G_inf.number_of_edges() > 0:
+                L_inf = nx.laplacian_matrix(G_inf, weight="weight").todense()
+                eigenvalues_inf = np.linalg.eigvalsh(L_inf)
+                eigenvalues_inf_sorted = sorted(eigenvalues_inf.tolist())
+                spectral["influence_fiedler_value"] = eigenvalues_inf_sorted[1] if len(eigenvalues_inf_sorted) > 1 else None
+            else:
+                spectral["influence_fiedler_value"] = None
+
+            try:
+                spectral["influence_global_efficiency"] = nx.global_efficiency(G_inf)
+            except Exception:
+                spectral["influence_global_efficiency"] = None
+
+            if G_inf.number_of_nodes() > 0:
+                degrees = dict(G_inf.degree())
+                spectral["influence_avg_degree"] = sum(degrees.values()) / G_inf.number_of_nodes()
+            else:
+                spectral["influence_avg_degree"] = None
+
+            try:
+                closeness = nx.closeness_centrality(G_inf, distance='weight')
+                spectral["influence_avg_closeness"] = np.mean(list(closeness.values()))
+            except Exception:
+                spectral["influence_avg_closeness"] = None
+
+            try:
+                betweenness = nx.betweenness_centrality(G_inf, weight='weight')
+                spectral["influence_avg_betweenness"] = np.mean(list(betweenness.values()))
+            except Exception:
+                spectral["influence_avg_betweenness"] = None
+
+            try:
+                spectral["influence_avg_clustering"] = nx.average_clustering(G_inf, weight="weight")
+            except Exception:
+                spectral["influence_avg_clustering"] = None
         else:
-            spectral["average_influence_clustering"] = None
+            spectral["influence_fiedler_value"] = None
+            spectral["influence_global_efficiency"] = None
+            spectral["influence_avg_degree"] = None
+            spectral["influence_avg_closeness"] = None
+            spectral["influence_avg_betweenness"] = None
+            spectral["influence_avg_clustering"] = None
+
         return spectral
 
     def compute_composite_invariants(self, color=chess.WHITE):
-        """
-        Compute a composite invariant vector (as a dictionary) for the given color.
-        This aggregates:
-          - Pawn island count
-          - Passed pawn score
-          - Space score
-          - Shield index (for the king)
-          - Attackers' proximity (for the king)
-          - Spectral invariants (including influence clustering)
-          
-        The king square is detected automatically; if not found, defaults to e1 (white) or e8 (black).
-        """
         king_sq = self.board.king(color)
         if king_sq is None:
             king_sq = chess.parse_square("e1") if color == chess.WHITE else chess.parse_square("e8")
@@ -529,16 +531,11 @@ class PositionalGraph:
             "space_score": self.compute_space_score(color=color),
             "shield_index": self.compute_shield_index(king_sq, color=color),
             "attackers_proximity": self.compute_attackers_proximity(king_sq, color=color),
-            "spectral_invariants": self.compute_spectral_invariants()
+            "spectral_invariants": self.compute_spectral_invariants(color=color)
         }
         return invariants
 
     def compute_all_composite_invariants(self):
-        """
-        Compute composite invariants for both white and black individually.
-        
-        Returns a dictionary with keys "white" and "black", each mapping to its composite invariant vector.
-        """
         return {
             "white": self.compute_composite_invariants(color=chess.WHITE),
             "black": self.compute_composite_invariants(color=chess.BLACK)
@@ -548,26 +545,11 @@ class PositionalGraph:
     # Output Table Function
     # ------------------------------------------------------------------------------
     def print_invariants_table(self, all_invariants):
-        """
-        Print a formatted table displaying composite invariants for both white and black.
-        The table includes:
-          - Pawn Island Count
-          - Passed Pawn Score
-          - Space Score
-          - Shield Index
-          - Attackers' Proximity
-          - Fiedler Value
-          - Avg. Eigenvector Centrality
-          - Avg. Clustering
-          - Avg. Influence Clustering
-        """
         white = all_invariants["white"]
         black = all_invariants["black"]
-        # Extract summary spectral invariants
         spec_white = white["spectral_invariants"]
         spec_black = black["spectral_invariants"]
 
-        # Prepare table rows as: [Invariant, White Value, Black Value]
         table = [
             ["Pawn Island Count", white["pawn_island_count"], black["pawn_island_count"]],
             ["Passed Pawn Score", white["passed_pawn_score"], black["passed_pawn_score"]],
@@ -575,16 +557,19 @@ class PositionalGraph:
             ["Shield Index", white["shield_index"], black["shield_index"]],
             ["Attackers' Proximity", white["attackers_proximity"], black["attackers_proximity"]],
             ["Fiedler Value", spec_white["fiedler_value"], spec_black["fiedler_value"]],
+            ["Influence Fiedler Value", spec_white["influence_fiedler_value"], spec_black["influence_fiedler_value"]],
             ["Avg. Eigenvector Centrality", spec_white["average_eigenvector_centrality"], spec_black["average_eigenvector_centrality"]],
             ["Avg. Clustering", spec_white["average_clustering"], spec_black["average_clustering"]],
-            ["Avg. Influence Clustering", spec_white["average_influence_clustering"], spec_black["average_influence_clustering"]]
+            ["Avg. Influence Clustering", spec_white["influence_avg_clustering"], spec_black["influence_avg_clustering"]],
+            ["Influence Global Efficiency", spec_white["influence_global_efficiency"], spec_black["influence_global_efficiency"]],
+            ["Influence Avg. Degree", spec_white["influence_avg_degree"], spec_black["influence_avg_degree"]],
+            ["Influence Avg. Closeness", spec_white["influence_avg_closeness"], spec_black["influence_avg_closeness"]],
+            ["Influence Avg. Betweenness", spec_white["influence_avg_betweenness"], spec_black["influence_avg_betweenness"]]
         ]
-        # Determine column widths
         col1_width = max(len(row[0]) for row in table)
         col2_width = max(len(str(row[1])) for row in table)
         col3_width = max(len(str(row[2])) for row in table)
         total_width = col1_width + col2_width + col3_width + 10
-        
         print("-" * total_width)
         header = f"| {'Invariant':<{col1_width}} | {'White':^{col2_width}} | {'Black':^{col3_width}} |"
         print(header)
@@ -598,19 +583,21 @@ class PositionalGraph:
     # ------------------------------------------------------------------------------
     def visualize(self, layout="spring"):
         """
-        Visualize the graph using matplotlib.
-        Nodes are colored by type and edges by their type.
+        Visualize the overall positional graph, showing only nodes that have at least one edge.
         """
-        if layout == "spring":
-            pos = nx.spring_layout(self.graph, weight="weight")
-        elif layout == "circular":
-            pos = nx.circular_layout(self.graph)
-        else:
-            pos = nx.spring_layout(self.graph, weight="weight")
+        G_vis = self.graph.copy()
+        isolated_nodes = list(nx.isolates(G_vis))
+        G_vis.remove_nodes_from(isolated_nodes)
 
-        # Color nodes based on type.
+        if layout == "spring":
+            pos = nx.spring_layout(G_vis, weight="weight")
+        elif layout == "circular":
+            pos = nx.circular_layout(G_vis)
+        else:
+            pos = nx.spring_layout(G_vis, weight="weight")
+
         node_colors = []
-        for node, attr in self.graph.nodes(data=True):
+        for node, attr in G_vis.nodes(data=True):
             if attr.get("type") == "square":
                 node_colors.append("lightblue")
             elif attr.get("type") == "pawn":
@@ -619,12 +606,9 @@ class PositionalGraph:
                 node_colors.append("lightgreen")
             else:
                 node_colors.append("gray")
-
         plt.figure(figsize=(10, 8))
-        nx.draw_networkx_nodes(self.graph, pos, node_color=node_colors, node_size=300)
-        nx.draw_networkx_labels(self.graph, pos, font_size=8)
-
-        # Draw edges with colors based on edge type.
+        nx.draw_networkx_nodes(G_vis, pos, node_color=node_colors, node_size=300)
+        nx.draw_networkx_labels(G_vis, pos, font_size=8)
         edge_types = {
             "adjacency": "black",
             "pawn_support": "red",
@@ -632,10 +616,46 @@ class PositionalGraph:
             "zone": "green",
         }
         for etype, color in edge_types.items():
-            edgelist = [(u, v) for u, v, d in self.graph.edges(data=True) if d.get("type") == etype]
-            nx.draw_networkx_edges(self.graph, pos, edgelist=edgelist, edge_color=color, width=1)
+            edgelist = [(u, v) for u, v, d in G_vis.edges(data=True) if d.get("type") == etype]
+            nx.draw_networkx_edges(G_vis, pos, edgelist=edgelist, edge_color=color, width=1)
+        plt.title("Enhanced Positional Graph (Non-isolated Nodes Only)")
+        plt.axis("off")
+        plt.show()
 
-        plt.title("Enhanced Positional Graph with Pawn Roles, Zone Nodes, and Spectral Invariants")
+    def visualize_influence_subgraph(self, color, layout="spring"):
+        """
+        Visualize the influence subgraph for the given color,
+        showing only nodes with at least one edge.
+        """
+        G_inf = self.compute_influence_subgraph_by_color(color)
+        G_inf_vis = G_inf.copy()
+        isolated_nodes = list(nx.isolates(G_inf_vis))
+        G_inf_vis.remove_nodes_from(isolated_nodes)
+
+        if layout == "spring":
+            pos = nx.spring_layout(G_inf_vis, weight="weight")
+        elif layout == "circular":
+            pos = nx.circular_layout(G_inf_vis)
+        else:
+            pos = nx.spring_layout(G_inf_vis, weight="weight")
+
+        node_colors = []
+        for node, attr in G_inf_vis.nodes(data=True):
+            if attr.get("type") == "square":
+                node_colors.append("lightblue")
+            elif attr.get("type") == "pawn":
+                node_colors.append("orange")
+            elif attr.get("type") == "zone":
+                node_colors.append("lightgreen")
+            else:
+                node_colors.append("gray")
+        plt.figure(figsize=(10, 8))
+        nx.draw_networkx_nodes(G_inf_vis, pos, node_color=node_colors, node_size=300)
+        nx.draw_networkx_labels(G_inf_vis, pos, font_size=8)
+        edgelist = [(u, v) for u, v, d in G_inf_vis.edges(data=True) if d.get("type") == "influence"]
+        nx.draw_networkx_edges(G_inf_vis, pos, edgelist=edgelist, edge_color="purple", width=1)
+        title_color = "White" if color == chess.WHITE else "Black"
+        plt.title(f"Influence Subgraph for {title_color} (Non-isolated Nodes Only)")
         plt.axis("off")
         plt.show()
 
@@ -643,22 +663,12 @@ class PositionalGraph:
 # Example Usage
 # ------------------------------------------------------------------------------
 if __name__ == "__main__":
-    # Use the standard starting position FEN.
-    fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    # Example: Open Ruy Lopez / Active Middlegame (Example 5)
+    fen = "r1bqk2r/p1pp1ppp/2n2n2/1B2p3/4P3/1pNP1N2/PPPP1PPP/R1BQK2R w KQkq - 2 6"
     board = chess.Board(fen)
     
     # Instantiate the PositionalGraph.
     pos_graph = PositionalGraph(board)
-    
-    # Compute and print individual metrics.
-    print("Pawn Island Count:", pos_graph.compute_pawn_island_count())
-    print("Passed Pawn Score:", pos_graph.compute_passed_pawn_score())
-    print("Space Score (White):", pos_graph.compute_space_score(color=chess.WHITE))
-    
-    # For king safety metrics, use the white king's starting square.
-    white_king_sq = chess.parse_square("e1")
-    print("Shield Index (White King):", pos_graph.compute_shield_index(white_king_sq, color=chess.WHITE))
-    print("Attackers' Proximity (White King):", pos_graph.compute_attackers_proximity(white_king_sq, color=chess.WHITE))
     
     # Compute composite invariants for both white and black.
     all_invariants = pos_graph.compute_all_composite_invariants()
@@ -667,5 +677,12 @@ if __name__ == "__main__":
     print("\nComposite Invariants Table:")
     pos_graph.print_invariants_table(all_invariants)
     
-    # Visualize the enhanced positional graph.
+    # Visualize the overall positional graph (only non-isolated nodes).
     pos_graph.visualize()
+    
+    # Visualize the influence subgraph for White.
+    pos_graph.visualize_influence_subgraph(chess.WHITE)
+    
+    # Visualize the influence subgraph for Black.
+    pos_graph.visualize_influence_subgraph(chess.BLACK)
+ 
