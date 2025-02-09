@@ -9,12 +9,9 @@ This module constructs a positional graph that integrates chess theory:
  - Additional Invariants: Composite invariants are computed including pawn island count,
    passed pawn score, space score, shield index, attackers' proximity, and spectral invariants.
  - Material values are incorporated into influence and control computations.
+ - Legal Move Enforcement: Influence edges are built using only legal moves.
+ - Results for both white and black are computed separately; the king square is detected automatically.
 
-Modifications:
- 1. Results for both white and black are computed individually.
- 2. The king square is detected for every board position and king safety metrics (shield index,
-    attackers' proximity) are computed accordingly.
-    
 It uses python‑chess for board representation, NetworkX for graph construction,
 and matplotlib for visualization.
 """
@@ -351,15 +348,25 @@ class PositionalGraph:
     def _add_influence_edges(self):
         """
         For each piece on the board, add influence edges from the piece's square
-        to each square it attacks. The weight is multiplied by the piece's material value.
+        to each square it legally moves to. The weight is multiplied by the piece's material value.
+        
+        This method uses board.generate_legal_moves() to ensure that only legal moves are included.
         """
+        # Generate all legal moves once
+        legal_moves = list(self.board.generate_legal_moves())
+        # Group moves by the from_square
+        moves_from = {}
+        for move in legal_moves:
+            moves_from.setdefault(move.from_square, []).append(move)
+        
         for square in self.board_squares:
             sq = chess.parse_square(square)
             piece = self.board.piece_at(sq)
             if piece is not None:
                 material_weight = MATERIAL_VALUES.get(piece.symbol(), 1)
-                attacked_squares = [chess.square_name(s) for s in self.board.attacks(sq)]
-                for target in attacked_squares:
+                moves = moves_from.get(sq, [])
+                for move in moves:
+                    target = chess.square_name(move.to_square)
                     coord1 = square_to_coord(square)
                     coord2 = square_to_coord(target)
                     weight = material_weight * (1 + manhattan_distance(coord1, coord2))
@@ -526,9 +533,55 @@ class PositionalGraph:
         }
 
     # ------------------------------------------------------------------------------
+    # Output Table Function
+    # ------------------------------------------------------------------------------
+    def print_invariants_table(self, all_invariants):
+        """
+        Print a formatted table displaying composite invariants for both white and black.
+        The table includes:
+          - Pawn Island Count
+          - Passed Pawn Score
+          - Space Score
+          - Shield Index
+          - Attackers' Proximity
+          - Fiedler Value
+          - Average Eigenvector Centrality
+          - Average Clustering
+        """
+        white = all_invariants["white"]
+        black = all_invariants["black"]
+        # Extract summary spectral invariants
+        spec_white = white["spectral_invariants"]
+        spec_black = black["spectral_invariants"]
+
+        # Prepare table rows as: [Invariant, White Value, Black Value]
+        table = [
+            ["Pawn Island Count", white["pawn_island_count"], black["pawn_island_count"]],
+            ["Passed Pawn Score", white["passed_pawn_score"], black["passed_pawn_score"]],
+            ["Space Score", white["space_score"], black["space_score"]],
+            ["Shield Index", white["shield_index"], black["shield_index"]],
+            ["Attackers' Proximity", white["attackers_proximity"], black["attackers_proximity"]],
+            ["Fiedler Value", spec_white["fiedler_value"], spec_black["fiedler_value"]],
+            ["Avg. Eigenvector Centrality", spec_white["average_eigenvector_centrality"], spec_black["average_eigenvector_centrality"]],
+            ["Avg. Clustering", spec_white["average_clustering"], spec_black["average_clustering"]]
+        ]
+        # Determine column widths
+        col1_width = max(len(row[0]) for row in table)
+        col2_width = max(len(str(row[1])) for row in table)
+        col3_width = max(len(str(row[2])) for row in table)
+        total_width = col1_width + col2_width + col3_width + 10
+        
+        print("-" * total_width)
+        header = f"| {'Invariant':<{col1_width}} | {'White':^{col2_width}} | {'Black':^{col3_width}} |"
+        print(header)
+        print("-" * total_width)
+        for row in table:
+            print(f"| {row[0]:<{col1_width}} | {str(row[1]):^{col2_width}} | {str(row[2]):^{col3_width}} |")
+        print("-" * total_width)
+
+    # ------------------------------------------------------------------------------
     # Graph Visualization
     # ------------------------------------------------------------------------------
-
     def visualize(self, layout="spring"):
         """
         Visualize the graph using matplotlib.
@@ -592,16 +645,14 @@ if __name__ == "__main__":
     # For king safety metrics, use the white king's starting square.
     white_king_sq = chess.parse_square("e1")
     print("Shield Index (White King):", pos_graph.compute_shield_index(white_king_sq, color=chess.WHITE))
-    print("Attackers Proximity (White King):", pos_graph.compute_attackers_proximity(white_king_sq, color=chess.WHITE))
+    print("Attackers' Proximity (White King):", pos_graph.compute_attackers_proximity(white_king_sq, color=chess.WHITE))
     
-    # Compute and print composite invariants for both white and black.
+    # Compute composite invariants for both white and black.
     all_invariants = pos_graph.compute_all_composite_invariants()
-    print("Composite Invariants for White:")
-    for key, value in all_invariants["white"].items():
-        print(f"  {key}: {value}")
-    print("Composite Invariants for Black:")
-    for key, value in all_invariants["black"].items():
-        print(f"  {key}: {value}")
+    
+    # Print the composite invariants in a formatted table.
+    print("\nComposite Invariants Table:")
+    pos_graph.print_invariants_table(all_invariants)
     
     # Visualize the enhanced positional graph.
     pos_graph.visualize()
