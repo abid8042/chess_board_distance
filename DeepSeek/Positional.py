@@ -11,6 +11,8 @@ This module constructs a positional graph that integrates chess theory:
  - Material values are incorporated into influence and control computations.
  - Legal Move Enforcement: Influence edges are built using only legal moves.
  - Results for both white and black are computed separately; the king square is detected automatically.
+ - **Refined Clustering:** In addition to the overall clustering coefficient, an influence‐specific 
+   clustering coefficient is computed from the subgraph of influence edges.
 
 It uses python‑chess for board representation, NetworkX for graph construction,
 and matplotlib for visualization.
@@ -352,9 +354,9 @@ class PositionalGraph:
         
         This method uses board.generate_legal_moves() to ensure that only legal moves are included.
         """
-        # Generate all legal moves once
+        # Generate all legal moves once.
         legal_moves = list(self.board.generate_legal_moves())
-        # Group moves by the from_square
+        # Group moves by the from_square.
         moves_from = {}
         for move in legal_moves:
             moves_from.setdefault(move.from_square, []).append(move)
@@ -476,6 +478,8 @@ class PositionalGraph:
           - eigenvector_centrality: A dictionary of eigenvector centrality values.
           - average_eigenvector_centrality: The average of eigenvector centrality.
           - average_clustering: The average clustering coefficient of the graph.
+          - average_influence_clustering: The average clustering coefficient computed on the subgraph
+                                          containing only influence edges.
         """
         spectral = {}
         # Compute the Laplacian matrix
@@ -491,8 +495,16 @@ class PositionalGraph:
         spectral["eigenvector_centrality"] = ev_centrality
         spectral["average_eigenvector_centrality"] = np.mean(list(ev_centrality.values()))
         
-        # Compute average clustering coefficient
+        # Compute average clustering coefficient for the whole graph
         spectral["average_clustering"] = nx.average_clustering(self.graph, weight="weight")
+        
+        # Compute average clustering for the influence subgraph.
+        influence_edges = [(u, v) for u, v, d in self.graph.edges(data=True) if d.get("type") == "influence"]
+        if influence_edges:
+            influence_subgraph = self.graph.edge_subgraph(influence_edges)
+            spectral["average_influence_clustering"] = nx.average_clustering(influence_subgraph, weight="weight")
+        else:
+            spectral["average_influence_clustering"] = None
         return spectral
 
     def compute_composite_invariants(self, color=chess.WHITE):
@@ -504,7 +516,7 @@ class PositionalGraph:
           - Space score
           - Shield index (for the king)
           - Attackers' proximity (for the king)
-          - Spectral invariants (Laplacian spectrum, Fiedler value, eigenvector centrality, clustering)
+          - Spectral invariants (including influence clustering)
           
         The king square is detected automatically; if not found, defaults to e1 (white) or e8 (black).
         """
@@ -545,8 +557,9 @@ class PositionalGraph:
           - Shield Index
           - Attackers' Proximity
           - Fiedler Value
-          - Average Eigenvector Centrality
-          - Average Clustering
+          - Avg. Eigenvector Centrality
+          - Avg. Clustering
+          - Avg. Influence Clustering
         """
         white = all_invariants["white"]
         black = all_invariants["black"]
@@ -563,7 +576,8 @@ class PositionalGraph:
             ["Attackers' Proximity", white["attackers_proximity"], black["attackers_proximity"]],
             ["Fiedler Value", spec_white["fiedler_value"], spec_black["fiedler_value"]],
             ["Avg. Eigenvector Centrality", spec_white["average_eigenvector_centrality"], spec_black["average_eigenvector_centrality"]],
-            ["Avg. Clustering", spec_white["average_clustering"], spec_black["average_clustering"]]
+            ["Avg. Clustering", spec_white["average_clustering"], spec_black["average_clustering"]],
+            ["Avg. Influence Clustering", spec_white["average_influence_clustering"], spec_black["average_influence_clustering"]]
         ]
         # Determine column widths
         col1_width = max(len(row[0]) for row in table)
@@ -628,7 +642,6 @@ class PositionalGraph:
 # ------------------------------------------------------------------------------
 # Example Usage
 # ------------------------------------------------------------------------------
-
 if __name__ == "__main__":
     # Use the standard starting position FEN.
     fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
