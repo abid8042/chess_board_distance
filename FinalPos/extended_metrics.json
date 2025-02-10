@@ -1,0 +1,126 @@
+{
+  "piece_distance": [
+    "square_to_coord"
+  ],
+  "square_to_coord": [],
+  "manhattan_distance": [],
+  "control_value": [],
+  "square_weight": [
+    "square_to_coord"
+  ],
+  "control_factor": [],
+  "get_pawn_roles": [],
+  "get_zone": [
+    "square_to_coord"
+  ],
+  "PositionalGraph.__init__": [
+    "_build_graph",
+    "get_zone"
+  ],
+  "PositionalGraph._build_graph": [
+    "_add_board_nodes",
+    "_add_pawn_nodes",
+    "_add_zone_nodes",
+    "_add_adjacency_edges",
+    "_add_pawn_support_edges",
+    "_add_influence_edges",
+    "_add_zone_edges"
+  ],
+  "PositionalGraph._add_board_nodes": [],
+  "PositionalGraph._add_pawn_nodes": [
+    "get_pawn_roles"
+  ],
+  "PositionalGraph._add_zone_nodes": [],
+  "PositionalGraph._add_adjacency_edges": [
+    "square_to_coord",
+    "manhattan_distance",
+    "control_value"
+  ],
+  "PositionalGraph._add_pawn_support_edges": [
+    "square_to_coord",
+    "piece_distance",
+    "control_value"
+  ],
+  "PositionalGraph._add_influence_edges": [
+    "piece_distance"
+  ],
+  "PositionalGraph._add_zone_edges": [
+    "get_zone"
+  ],
+  "PositionalGraph.compute_influence_subgraph_by_color": [],
+  "PositionalGraph.compute_union_influence_subgraph": [],
+  "PositionalGraph.compute_pawn_island_count": [],
+  "PositionalGraph.compute_passed_pawn_score": [
+    "square_to_coord"
+  ],
+  "PositionalGraph.compute_space_score": [
+    "square_weight",
+    "control_factor"
+  ],
+  "PositionalGraph.compute_shield_index": [
+    "square_to_coord"
+  ],
+  "PositionalGraph.compute_attackers_proximity": [
+    "square_to_coord",
+    "manhattan_distance"
+  ],
+  "PositionalGraph.compute_spectral_invariants": [],
+  "PositionalGraph.compute_composite_invariants": [
+    "PositionalGraph.compute_pawn_island_count",
+    "PositionalGraph.compute_passed_pawn_score",
+    "PositionalGraph.compute_space_score",
+    "PositionalGraph.compute_shield_index",
+    "PositionalGraph.compute_attackers_proximity",
+    "PositionalGraph.compute_spectral_invariants"
+  ],
+  "PositionalGraph.compute_all_composite_invariants": [
+    "PositionalGraph.compute_composite_invariants"
+  ],
+  "PositionalGraph.print_invariants_table": [],
+  "PositionalGraph.visualize": [],
+  "PositionalGraph.visualize_influence_subgraph": [
+    "PositionalGraph.compute_influence_subgraph_by_color"
+  ],
+  "PositionalGraph.visualize_union_influence_subgraph_on_board": [],
+  "union_influence_graph": [
+    "PositionalGraph.compute_influence_subgraph_by_color"
+  ],
+  "get_connected_components": [],
+  "compute_components_entropy": [
+    "get_connected_components"
+  ],
+  "compute_harmonic_centrality_variance": [],
+  "compute_effective_diameter": [],
+  "compute_component_metrics": [
+    "compute_effective_diameter"
+  ],
+  "compute_zone_subgraph": [
+    "get_zone"
+  ],
+  "compute_zone_metrics": [
+    "compute_zone_subgraph",
+    "get_connected_components",
+    "compute_component_metrics",
+    "compute_components_entropy",
+    "compute_harmonic_centrality_variance"
+  ],
+  "aggregate_zone_metrics": [],
+  "compute_extended_influence_metrics": [
+    "get_connected_components",
+    "compute_component_metrics",
+    "compute_components_entropy",
+    "compute_harmonic_centrality_variance",
+    "compute_zone_metrics",
+    "aggregate_zone_metrics"
+  ],
+  "generate_influence_metrics_timeseries": [
+    "PositionalGraph",
+    "union_influence_graph",
+    "PositionalGraph.compute_influence_subgraph_by_color",
+    "compute_extended_influence_metrics"
+  ],
+  "read_games_from_pgn": [
+    "chess.pgn.read_game"
+  ],
+  "os.makedirs": []
+}
