@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Influence Network Visualization</title>
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <!-- Base Styles -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Dashboard Styles -->
+    <link rel="stylesheet" href="dashboard-styles.css">
+    
+    <!-- Advanced Controls Styles -->
+    <link rel="stylesheet" href="advanced-controls.css">
+    
+    <!-- D3.js Library -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <div class="header">
+            <div class="title">
+                <h1>Chess Influence Network Visualization</h1>
+            </div>
+            <div class="move-navigator">
+                <div class="move-info">
+                    <span class="current-move-label">Move:</span>
+                    <span id="current-move-number">0</span>
+                    <span id="current-move-notation">start</span>
+                </div>
+                <div class="move-controls">
+                    <button id="prev-move-btn" class="control-btn"><i class="fas fa-step-backward"></i></button>
+                    <button id="play-pause-btn" class="control-btn"><i class="fas fa-play"></i></button>
+                    <button id="next-move-btn" class="control-btn"><i class="fas fa-step-forward"></i></button>
+                </div>
+                <div class="move-slider-container">
+                    <input type="range" id="move-slider-input" class="move-slider" min="0" max="0" value="0">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Control Panel (Left Sidebar) -->
+            <div class="control-panel">
+                <!-- Basic Layout Controls -->
+                <div class="panel-section">
+                    <h3>Layout</h3>
+                    <div class="control-group">
+                        <label for="layout-select-dropdown">Choose Layout:</label>
+                        <select id="layout-select-dropdown" class="select-dropdown">
+                            <option value="force">Force Directed</option>
+                            <option value="radial">Radial Layout</option>
+                            <option value="bubble+force">Bubble + Force</option>
+                            <option value="bubble+radial">Bubble + Radial</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>
+                            <input type="checkbox" id="auto-tune-checkbox">
+                            Auto-tune parameters
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Graph Type Controls -->
+                <div class="panel-section">
+                    <h3>Graph Type</h3>
+                    <div class="control-group">
+                        <div class="radio-container">
+                            <input type="radio" id="graph-combined-radio" name="graph-type" value="combined" checked>
+                            <span class="radio-label">Combined</span>
+                        </div>
+                        <div class="radio-container">
+                            <input type="radio" id="graph-white-radio" name="graph-type" value="white">
+                            <span class="radio-label">White Only</span>
+                        </div>
+                        <div class="radio-container">
+                            <input type="radio" id="graph-black-radio" name="graph-type" value="black">
+                            <span class="radio-label">Black Only</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Node Styling -->
+                <div class="panel-section">
+                    <h3>Node Styling</h3>
+                    <div class="control-group">
+                        <label for="node-size-select">Size Nodes By:</label>
+                        <select id="node-size-select" class="select-dropdown">
+                            <option value="in-degree">In-Degree</option>
+                            <option value="out-degree">Out-Degree</option>
+                            <option value="fixed">Fixed Size</option>
+                            <option value="community">Community</option>
+                            <option value="component">Component</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="label-visibility-select">Label Visibility:</label>
+                        <select id="label-visibility-select" class="select-dropdown">
+                            <option value="all">All Labels</option>
+                            <option value="hover">On Hover</option>
+                            <option value="pieces">Pieces Only</option>
+                            <option value="none">No Labels</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Edge Styling -->
+                <div class="panel-section">
+                    <h3>Edge Styling</h3>
+                    <div class="control-group">
+                        <label for="arrow-style-select">Arrow Style:</label>
+                        <select id="arrow-style-select" class="select-dropdown">
+                            <option value="tapered">Tapered</option>
+                            <option value="classic">Classic</option>
+                            <option value="animated">Animated</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="influence-threshold-slider">Influence Threshold:</label>
+                        <div class="range-with-value">
+                            <input type="range" id="influence-threshold-slider" class="slider" min="0" max="1" step="0.1" value="0">
+                            <span id="influence-threshold-value">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Visual Effects -->
+                <div class="panel-section">
+                    <h3>Visual Effects</h3>
+                    <div class="control-group">
+                        <div class="switch-container">
+                            <input type="checkbox" id="show-communities-checkbox" checked>
+                            <span class="switch-label">Show Communities</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <div class="switch-container">
+                            <input type="checkbox" id="show-animation-checkbox" checked>
+                            <span class="switch-label">Show Animation</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <div class="switch-container">
+                            <input type="checkbox" id="show-inactive-nodes-checkbox" checked>
+                            <span class="switch-label">Show Inactive Pieces</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="color-by-select">Color Nodes By:</label>
+                        <select id="color-by-select" class="select-dropdown">
+                            <option value="community">Community</option>
+                            <option value="component">Component</option>
+                            <option value="piece-type">Piece Type</option>
+                            <option value="piece-color">Piece Color</option>
+                            <option value="status">Status</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Performance Optimization Controls -->
+                <div class="panel-section" id="performance-optimization-panel">
+                    <h3>Performance Optimization</h3>
+                    
+                    <div class="control-group">
+                        <div class="switch-container">
+                            <input type="checkbox" id="performance-toggle-checkbox" checked>
+                            <span class="switch-label">Enable Performance Optimizations</span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="switch-container">
+                            <input type="checkbox" id="node-culling-toggle-checkbox" checked>
+                            <span class="switch-label">Smart Node Culling</span>
+                            <span class="tooltip-icon" title="Reduces rendering for off-screen nodes">
+                                <i class="fas fa-info-circle"></i>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="switch-container">
+                            <input type="checkbox" id="lod-rendering-toggle-checkbox" checked>
+                            <span class="switch-label">Level of Detail</span>
+                            <span class="tooltip-icon" title="Adjusts detail based on zoom level">
+                                <i class="fas fa-info-circle"></i>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="switch-container">
+                            <input type="checkbox" id="force-optimization-toggle-checkbox" checked>
+                            <span class="switch-label">Force Simulation Optimization</span>
+                            <span class="tooltip-icon" title="Adjusts physics simulation for large networks">
+                                <i class="fas fa-info-circle"></i>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <button id="auto-optimize-btn" class="tune-btn">
+                        <i class="fas fa-tachometer-alt"></i> Auto-Optimize Performance
+                    </button>
+                </div>
+                
+                <!-- Advanced Controls Toggle -->
+                <div class="panel-section">
+                    <h3>Advanced Options</h3>
+                    <button id="toggle-advanced-controls-btn" class="control-btn">
+                        <i class="fas fa-sliders-h"></i> Show Advanced Controls
+                    </button>
+                </div>
+                
+                <!-- Advanced Controls Container (Initially Hidden) -->
+                <div id="advanced-controls-container" class="advanced-controls-panel">
+                    <!-- This will be populated by AdvancedControls.js -->
+                </div>
+            </div>
+            
+            <!-- Visualization Area -->
+            <div class="visualization-area">
+                <div id="network-container"></div>
+                
+                <!-- Zoom Controls -->
+                <div class="zoom-controls">
+                    <button id="zoom-in-btn" class="zoom-btn"><i class="fas fa-plus"></i></button>
+                    <button id="zoom-reset-btn" class="zoom-btn"><i class="fas fa-crosshairs"></i></button>
+                    <button id="zoom-out-btn" class="zoom-btn"><i class="fas fa-minus"></i></button>
+                </div>
+            </div>
+            
+            <!-- Metrics Panel (Right Sidebar) -->
+            <div class="metrics-panel">
+                <div class="fen-display">
+                    <div class="fen-string" id="fen-string-display">No FEN available</div>
+                </div>
+                
+                <!-- Tabs for different metrics -->
+                <div class="metrics-tabs">
+                    <button class="tab-btn active" data-tab="combined">Combined</button>
+                    <button class="tab-btn" data-tab="white">White</button>
+                    <button class="tab-btn" data-tab="black">Black</button>
+                </div>
+                
+                <!-- Combined Metrics -->
+                <div id="combined-metrics-panel" class="metrics-content active">
+                    <div class="metric-row">
+                        <span class="metric-label">Fiedler Value:</span>
+                        <span id="combined-fiedler-value-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Out-Diameter:</span>
+                        <span id="combined-out-diameter-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">In-Diameter:</span>
+                        <span id="combined-in-diameter-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">In-Degree Avg:</span>
+                        <span id="combined-in-degree-avg-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">In-Degree Var:</span>
+                        <span id="combined-in-degree-var-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Out-Degree Avg:</span>
+                        <span id="combined-out-degree-avg-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Out-Degree Var:</span>
+                        <span id="combined-out-degree-var-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Modularity:</span>
+                        <span id="combined-modularity-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Communities:</span>
+                        <span id="combined-community-count-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Clustering:</span>
+                        <span id="combined-clustering-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Size Entropy:</span>
+                        <span id="combined-size-entropy-metric" class="metric-value">-</span>
+                    </div>
+                </div>
+                
+                <!-- White Metrics -->
+                <div id="white-metrics-panel" class="metrics-content">
+                    <div class="metric-row">
+                        <span class="metric-label">Fiedler Value:</span>
+                        <span id="white-fiedler-value-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Out-Diameter:</span>
+                        <span id="white-out-diameter-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">In-Diameter:</span>
+                        <span id="white-in-diameter-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">In-Degree Avg:</span>
+                        <span id="white-in-degree-avg-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">In-Degree Var:</span>
+                        <span id="white-in-degree-var-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Out-Degree Avg:</span>
+                        <span id="white-out-degree-avg-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Out-Degree Var:</span>
+                        <span id="white-out-degree-var-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Modularity:</span>
+                        <span id="white-modularity-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Communities:</span>
+                        <span id="white-community-count-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Clustering:</span>
+                        <span id="white-clustering-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Size Entropy:</span>
+                        <span id="white-size-entropy-metric" class="metric-value">-</span>
+                    </div>
+                </div>
+                
+                <!-- Black Metrics -->
+                <div id="black-metrics-panel" class="metrics-content">
+                    <div class="metric-row">
+                        <span class="metric-label">Fiedler Value:</span>
+                        <span id="black-fiedler-value-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Out-Diameter:</span>
+                        <span id="black-out-diameter-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">In-Diameter:</span>
+                        <span id="black-in-diameter-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">In-Degree Avg:</span>
+                        <span id="black-in-degree-avg-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">In-Degree Var:</span>
+                        <span id="black-in-degree-var-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Out-Degree Avg:</span>
+                        <span id="black-out-degree-avg-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Out-Degree Var:</span>
+                        <span id="black-out-degree-var-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Modularity:</span>
+                        <span id="black-modularity-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Communities:</span>
+                        <span id="black-community-count-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Clustering:</span>
+                        <span id="black-clustering-metric" class="metric-value">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Size Entropy:</span>
+                        <span id="black-size-entropy-metric" class="metric-value">-</span>
+                    </div>
+                </div>
+                
+                <!-- Selected Node Info -->
+                <div class="selected-node-info" id="selected-node-info-panel">
+                    <p>No node selected</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tooltip -->
+    <div id="tooltip-container" class="tooltip hidden"></div>
+    
+    <!-- Scripts -->
+    <!-- Utility and helper scripts -->
+    <script src="ChessUtilities.js"></script>
+    <script src="MetricsDisplay.js"></script>
+    <script src="LayoutSorter.js"></script>
+    
+    <!-- Performance optimization -->
+    <script src="PerformanceOptimizer.js"></script>
+    
+    <!-- Force layout components -->
+    <script src="ForceLayoutManager.js"></script>
+    <script src="D3RadialLayout.js"></script>
+    <script src="D3BubbleLayout.js"></script>
+    <script src="D3BaseVisualization.js"></script>
+    
+    <!-- Advanced UI controls -->
+    <script src="AdvancedControls.js"></script>
+    
+    <!-- Main application script -->
+    <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,486 @@
+Using and Abusing the Force
+0:14
+thank you well enough of the easy math uh let's get down to something more
+0:19
+difficult no uh my name is Jim banningham um and like she said uh my
+0:26
+day job is at a Bible medical research facility for doing a genomic analysis on
+0:32
+worms and flies and other sciency stuff but uh for fun uh we I like to look at
+0:38
+uh data visualizations and in interactive ones and today I'd like to uh talk about the the force layout and a
+0:46
+little more detail and and how to uh use it in in a non-traditional manner so so
+0:53
+we're going to be abusing the force layout typically here's a here's a you know we just saw uh an example of your
+1:00
+traditional Force layout and you this is typically utilized for your social
+1:05
+network or your congresses uh voting on the same stuff you know network-based stuff um but we're going to abuse this
+1:12
+force a little bit and come up with some novel ways to apply it uh to other data
+1:18
+visualization techniques to make uh your life a little bit easier so first I just
+1:23
+wanted to get everybody on the Baseline of what what exactly what we're talking about
+What is a Force Layout?
+1:29
+when we mean Force layout um and I think you know for most people would agree
+1:34
+that with the right amount of nodes in your with a right amount of bubbles in your layout um it's a pleasing way it's
+1:42
+a pretty way to draw a graph um but it works underneath the covers it's working
+1:47
+as a physical simulation so each of these nodes is kind of a a Charged force
+1:53
+a Charged particle excuse me and uh they have these charges work to to move to
+1:59
+repulse or to attract them in different ways and the links between these nodes constrain that movement and the
+2:05
+simulation works as a giant Loop so uh each iteration each cycle of this Loop
+2:12
+uh the charges are uh are impact the nodes they move and the visual display
+2:18
+is updated and that looping just occurs over and over again until it settles into a stable
+2:25
+configuration um so that's that's the force layout in a nutshell so that's that's how it traditionally works I'm a
+EVERYTHING IS A REMIX
+2:32
+big fan of this concept that everything is a remix uh which I first kind of latched on to from Kirby Ferguson's uh
+2:39
+wonderful uh videos which you haven't seen uh put it in your headphones now and and start listening to them ignore
+2:45
+me uh but his his main thesis is that um in the art in the creative world uh new
+2:52
+works are created by simple modifications of existing works so you take you take some existing stuff you
+3:00
+copy it you transform it you combine it uh to create new pieces and his his
+3:06
+videos are about that occurring in the Arts in music and in um literature and
+3:13
+and movies but I think it is also true and I think we've seen this in a number of presentations uh also true in the
+3:19
+data visualization world so part of this talk I'd like to provide some remixable
+3:25
+components uh little nuggets of of useful you know trickery that we could
+3:31
+start thinking about uh applying to uh your own visualizations so that means we're going
+3:37
+to look at some code and hopefully that's not a terrible mistake um so let's start with the force layout but
+3:43
+let's start out with just looking at just the node so let's build up this first part we'll build up a simple node
+3:49
+layout in D3 uh D3 is a a powerful tool for this because uh I think we'll see
+3:54
+the the uh succinctness that you can write and start using the force l out
+4:00
+immediately and the chances are you'll probably be using D3 and your other stuff so it's a good uh that it has that
+4:06
+in in the tool kit that you could use um so like everything in D3 uh the nodes
+4:13
+are going to be represented by some data so here we have uh just our our basic data sets an array have objects and each
+4:20
+object has some attributes here we just have the the amount attribute to get a force layout started it's pretty easy
+4:28
+you create a new instance of the force Force layout you pass in your data your nodes um as the nodes parameter and then
+4:36
+you start it and then um we'll talk about this here in a second you but you
+4:42
+also want to listen to The Tick event and that as we'll see allows you access to the simulation at each iteration at
+4:49
+each Loop of that simulation um an important thing to
+4:54
+remember about D3 in in general and and the force
+5:00
+in particular uh is that you're not constrained by particular rep visual representation right that's one of the
+5:06
+big powers of the of the whole idea but that does mean you'll have to do a little bit of extra work to get things going so a couple more pieces of of of
+5:14
+code uh first you would have to you have to decide what how you want to visualize your uh Force layout so you have to
+5:22
+visualize your simulation so on these we'll just use some SVG circles uh but
+5:27
+really you know keep in mind that that could be anything and we'll see a couple of examples of other stuff and right now
+5:34
+uh so yeah so you you bind your data uh in this case the force nodes to to that
+5:40
+visual representation and right now we won't use any attributes of that that data we'll just use some static constant
+5:46
+for the radius now inside uh when the force layout starts you get um your data
+5:54
+attributes get injected with some variables or some more attributes uh if they they weren't already present and
+6:01
+specifically we'll look at the X and Y attribute that would get added to each element of your uh data array and these
+6:09
+represent the current uh position of that of the node be being represented by
+6:14
+that um visual at every iteration of the uh layout so you can use that to position
+6:23
+your um your nodes and so this is the tick function this is the the simplest
+6:28
+example of the tick function this will get called executed every iteration of the simulation and we can use the X and
+6:35
+Y from being provided by our our Force layout um update to modify the positions
+6:42
+of the circles that that we're using to represent it so with all that you get uh
+6:47
+you get a couple of circles right uh but you can already see that this is a nice
+6:53
+uh visual uh attractive uh thing and it only took a few lines of to do this so
+7:01
+what what's going on behind the scenes to help make this attractive are are the forces that we mentioned that are
+7:07
+working on each of these nodes I'd like to talk about briefly uh charge and gravity charge uh if I get my guy up
+7:15
+charge represents um the the repulsion or attraction between each node and
+7:21
+every other node so um uh more negative values cause the noes to repulse from
+7:27
+one another and more and less negative and positive values cause them to attract um so you already can make cool
+7:34
+stuff like that um gravity unlike physical gravity it's not
+7:39
+down to earth it's it's more of a I mean it's described as a physical a spring spring-- like thing attached to the
+7:46
+center of the visualization so higher gravity constrains it to the center and
+7:53
+if you let go of gravity you everything floats out into space so with all uh just this this uh
+8:01
+beginner introduction knowledge to the layout you can start to abuse the force
+8:06
+in our own in our own way um and the first abuse can be the example that
+Force Directed Bubble Chart
+8:14
+Irene was talking about the the bubble chart and this was first or one of the
+8:19
+first you know best ways this was shown was a New York Times uh visualization
+8:24
+that was looking at the Obama uh budget proposal and so I'm using the you know
+8:30
+ter budget bubble chart just to rep mean we're using the the node size to
+8:35
+represent some underlying data value so how would how would we might we
+8:41
+be able to implement this uh type of visualization using the the knowledge that we have about our Force
+8:47
+layout well the first thing is easy we can instead of using some static constant for our radius we can scale the
+8:55
+size of our bubbles by the data that it's representing you know that we want it to represent um and that gets us half
+9:01
+the way there uh but unfortunately everything's overlapping nothing looks good anymore so what do we do the the
+9:07
+Insight is that we can pass a function to our charge parameter it doesn't have to be constrained by a static constant
+9:14
+either and so you can use so this this Now function will get executed for each
+9:20
+node in your layout um at the start of the uh force uh at that start time and
+9:28
+so we can use use the data itself to scale um our our charge our repulsion
+9:36
+value by this the amount that it's being visualized and with those two changes we
+9:41
+get this nice uh uh effect right each node is is pushing away relative to uh
+9:48
+its size and the sizes are then scaled by the data that you're looking for so
+9:54
+it works pretty nice um and this is my this is the the
+10:01
+summation of the whole talk so study it
+10:07
+um I think Mike BTO uh said it very eloquently when he said the force layout
+10:12
+is an implicit way to do position en coding I'm going to remix that quote
+10:18
+slightly and say it's a lazy way to move nodes around but it's it's a good kind of Laz so um as we'll see in these these
+10:26
+other examples we we don't don't have to care about uh each individual location
+10:32
+of that of of the nodes we instead impose simple rules in our simulation
+10:38
+right and allow the nodes to find the correct positions based on our simple rule set that we're given them here
+10:45
+we're just using the the charge the simple rule that charge is relative to size and uh and that's all it takes so
+10:53
+how else could we abuse this concept of uh applying simple forces uh yeah it's
+10:59
+cute right I like the Darth Vader the evilest
+11:04
+character in in the book you the movie uh well the the original one here uh had
+11:11
+this cool feature where uh you could split apart nodes based on some categorical value so here it's mandatory
+11:18
+versus discretionary spending which brings us to the idea
+Custom Forces
+11:23
+of uh imposing our our own or apply uh imposing our own custom forces
+11:31
+onto the the nodes so I recreated um parts of the the New York Times one
+11:39
+visualization in this uh demo for for the blog post about uh this is Gates
+11:46
+spending so the Gates Foundation um sorry the title's cut off but uh and they the the grant sizes that they've
+11:54
+provided over the years so in in this the categor the categorical splitting we
+11:59
+can do is over years and so you can see you get this really nice organic uh
+12:06
+feeling and they can they can merge back together so it's pretty um and it's
+12:11
+useful so how do we do that well here's our our basic tick
+12:16
+function the whole the whole general idea of custom uh forces in in this in
+12:22
+this example is we can modify this slightly to add in a a first a you know
+12:28
+a function that Jack with your noes somehow and modifies the the in position
+12:33
+slightly and then use that uh to then that modified position to then uh
+12:40
+position our nodes um so here's an example uh and we won't go through all
+12:45
+the code but um in this we would have some some way to represent the two
+12:52
+centers that we want to we're going to split up uh nodes from left to right and
+12:57
+uh we grab we have a function called move towards Center you know category Center
+13:04
+um and this this is a function that returns a function and we'll see why here in a minute um but so we grab the
+13:11
+correct the correct Center for our particular nodes value remember this is going to get executed each for each node
+13:19
+um and then move move that node based on the center's location so that almost
+13:26
+Works uh here's our our node when we when we apply that custom force
+13:32
+uh we're back to everything slamming on top of one another so what's going on
+13:38
+we've lost that uh nice thing that I just said was the whole point of this talk was that we didn't have to care about stuff now it seems like we'd have
+13:44
+to care about every position all this stuff um fortunately we have this this access
+13:53
+to this uh parameter which is which is indicated as Alpha um and we can think of it as a blending par
+14:00
+that can be used to combine multiple forces or charges on these nodes and if
+14:05
+we it's accessible from the um Force instance but you can also get to it from
+14:11
+from The Tick function at each iteration inside of an event uh that's passed there and if we were to print those out
+14:18
+we can see that it starts around 0.1 and gets decremented slightly every
+14:24
+iteration of the every Loop of that of that simulation and then when it ends uh
+14:30
+when it gets to close to 0.005 it'll end so the numbers are arbitrary but the
+14:35
+idea is that this is the actual mechanism by by which the force layout
+14:40
+is is settling down into I mean it's it's can be considered a form of simulated analing if if you're into that
+14:47
+kind of thing um but but this is what's causing the the stabilization of the
+14:53
+force layout in general so we can use this parameter and here's the same code
+14:59
+code but instead of uh so here now we get to pass in a the alpha into our into
+15:05
+our move toward category centers and with that small tweak this is why this is why it's a function returning to
+15:12
+function is because so it allows us to pass in variables without creating a global variable we can pass them locally
+15:18
+in here and have have access to them in our in our closure down here um but with
+15:24
+that small tweak things now work as you expect now we we're again not uh here
+15:30
+when we separate them out the the the alpha blending allows our charges that
+15:36
+are now relative to the the size of the nodes to be blended with our custom force and um works with a lot of nodes
+15:44
+and it works if you uh drag them around they'll they'll stick to their centers but again we're not we're not worried
+15:51
+really about where each of these nodes goes we're just telling them you guys
+15:57
+Clump here you guys Clump here and figure things out it's kind of nice
+16:02
+um so let's look at another iteration of this uh right now the uh the repulsion
+16:10
+the charge that's that's associated with each of these nodes is nice it keeps them the nodes away from one another but
+16:17
+it it's kind of an eventual process right uh so what if you wanted that to
+16:22
+be a more constrained more formal looking uh distinction um what we can Implement a
+Collision Detection
+16:30
+real simple Collision detection in the same manner so this was done I like
+16:35
+remixing New York Times Graphics uh and by remix you know what I mean
+16:41
+but uh but this was done by another great piece where we're visualizing uh
+16:48
+the words different words said at the different national conventions during the elections and uh I I implemented again
+16:56
+parts of this in another visualization that just looks at uh word frequencies in in some books but the the point of it
+17:03
+is that now um when we move these guys around this the nice hard line around
+17:10
+eum they're they're colliding and they're and they're um maintaining that uh parameter around them to implement
+17:18
+this um is the same same idea um we we use
+17:24
+another um modification function we can call it collide and I'll just look at
+17:29
+we'll just look at pseudo code here um because the it's not difficult but it's a little long so again this is being
+17:36
+executed for each node um at every cycle
+17:41
+of that that physical simulation that the node layout so we just inside of
+17:47
+this we can Loop through all the other noes and then do a a simple distance check if uh if they're too close based
+17:54
+on the the values of the the data attributes that we already know in in
+17:59
+those in those nodes then we just move them back by half um and so we get that
+18:05
+with that slight modification we can get this nice look it works with other custom uh forces like the one we just
+18:13
+looked at and it works with any number of nodes that you put into it and this
+18:18
+this is a a Brute Force mechanism that that you can optimize but it's just a starting point for this kind of uh
+18:26
+visualization and you can do cool stuff like the the demo of putting an invisible node underneath your your
+18:32
+mouse cursor and then everything all your other little nodes are afraid of it
+18:37
+which is fun too okay oh one more and uh there's
+18:44
+nothing that mandates that you have to move them back by half so if you you start increasing that that movement you
+18:51
+can end up with this nice uh but useless popcorn explosion they're colliding with
+18:56
+one another and getting scared and running away just fun um okay so let's I
+19:03
+think this is Dragon Ball Z not really uh Star Wars but that's okay it's a force uh let's add some some links you
+Nodes & Links
+19:11
+know finally um we've links constrain the locations uh that our notes can move
+19:18
+around um oh yeah here's here's the example with the links now and as you might expect in D3 links
+19:26
+are also represented in data so the minimum two things you need in your link data are a source and a Target
+19:34
+which represent the two uh nodes that they're connecting with you can do this either via an index into the nodes array
+19:41
+or with the actual nodes themselves and if you do it in an index when the force
+19:46
+layout starts they'll be translated into the noes themselves which means you have access to uh both the source and Target
+19:54
+node data um you need to visualize them in some way if you if you so choose and
+20:00
+so we can draw a simple line in this example and then like I said you have access to the source and destination or
+20:07
+source and Target uh data and you can use their X and Y coordinates to
+20:12
+position your lines start and stop and so you end up some the simplest
+20:18
+uh example I could come up with was that uh forces also have their own um
+20:24
+links also have their own parameters I'd like to talk about just link distance and um as you might guess link distance
+20:32
+just specifies the uh link distance the length of the the length of the links
+20:39
+um uh based on some value so uh another Insight is you can make that link
+20:46
+distance driven by data so instead of being a constant it can it can be uh it
+20:53
+can represent some data value in this in this case the link uh data has some
+21:00
+value distance that you could use to to expand or contract each Link at a
+21:05
+perlink level and that's essentially all I've done in this particular visualization where I was looking at um
+21:13
+uh communities in neighborhoods that have a sharp racial divide so here this is Kansas City and each each uh node is
+21:21
+now represented by a census tract and like I said you don't you're not constrained by bubbles um
+21:29
+and underneath and so each census tract is connected to its neighbors by Links and invisible links and this isn't
+21:36
+hasn't started yet but the length of those lengths is relative to the proportion uh of white and black
+21:43
+populations between that that neighbor and its neighbor you know that that census tract and its neighbor so um if
+21:51
+there's a sharp uh jump in in white or black populations so if you go from one
+21:58
+census tract is 20% white to its neighbor being 20% uh black then then
+22:04
+that length will be longer so when we start this it it starts to break apart
+22:10
+at areas where there's this real high Division and and I just I would this is
+22:16
+something that you understand kind of uh the the emotionally in Kansas City but
+22:24
+you I wanted to kind of look at a way to represent how these
+22:29
+um racial boundaries affected the the the spatially very small areas in which
+22:34
+they occur so um there's that so but that's all but underline that we're just
+22:40
+uh link distance is the only trick on that so we can start expanding uh these
+22:48
+Concepts um and the first the first thing I thought of when um I kind of
+22:54
+discovered the multiple centers idea is what if you put it into a circle you know everybody likes circles so here's
+Radial Layout
+23:02
+my interactive hairball that I did for uh uh my the the people that I work with
+23:08
+or work for at Star they wanted just kind of a an artsy representation of
+23:14
+collaboration you know one of the main science things is everybody collaborates with one another so each of these each
+23:19
+of these groups is a lab each node each circle is a individual in that lab and
+23:25
+there's links between them based on how many papers are on together um so it's
+23:30
+fun and and it allows for exploration again all I'm defining are the uh the C
+23:36
+the centers along a circle right U for each lab uh not the individuals which
+23:43
+means we can do stuff like reordering the um the Circle Center locations makes
+23:49
+everything move around you know kind of fun you can you can change and if you change the uh the uh uh radius that
+23:57
+you're applying the Circle to you can make pretty but useless you know obviously artistic uh spiral of spiral
+24:04
+of collaboration but you get to find out who's who's the coolest kid in the in
+24:10
+the uh in the groups there um and if if you want you know uh
+24:17
+a little bit of math introduction I kind of feel embarrassed for needing these kind of reminders after that previous talk but Tom MRI has a great
+24:24
+introduction to this uh math for pictures which I think is a is a wonderful exp uh introduction to using
+24:31
+uh using this kind of math to generate circles and stuff another example uh from a website
+24:38
+called let's free Congress that was used as kind of a extension uh of of the idea
+24:44
+that um they're looking at the small number of people that contribute large amounts of money to uh to election
+24:53
+funding um but the the visual was kind of interesting I thought I'd recreate it
+24:58
+so you start out with a bunch of nodes I kind of wanted Kill Bill music to be
+25:04
+playing at this so that's why the color scheme is such um and as the center node
+25:09
+expands the uh the nodes around it are kind of repulsed uh kind of in a very
+25:15
+organic manner right I I I like it and then when you can come back down and
+25:20
+they all jump on um but this is is Trivial now that we know um
+25:28
+the the previous examples here is all building on so we can tell this is uh the Collision detection is is in in
+25:35
+effect here um but it's also just a modification of the um the charge right
+25:43
+uh for that Center nodee so you get get a value from your slider uh and then modify your charge function to utilize
+25:50
+that value and um that's all you need to do to create this kind of interesting
+25:55
+visual with with again not much work the last one I'd like to look into in

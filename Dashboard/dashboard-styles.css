@@ -1,0 +1,317 @@
+/* Updated dashboard background and visual improvements */
+
+/* Background improvements */
+.visualization-area {
+    background-color: #080f1a; /* Darker background */
+    background-image: 
+        radial-gradient(rgba(105, 155, 200, 0.05) 1px, transparent 1px),
+        linear-gradient(to right, rgba(30, 60, 90, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(30, 60, 90, 0.05) 1px, transparent 1px);
+    background-size: 20px 20px, 40px 40px, 40px 40px;
+    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.3);
+}
+
+/* Improved node appearance */
+.node circle {
+    stroke: rgba(200, 220, 255, 0.4);
+    stroke-width: 1.5px;
+    transition: fill 0.3s, stroke 0.3s, stroke-width 0.3s;
+    opacity: 0.7; /* Semi-transparent to show piece icons better */
+}
+
+.node:hover circle {
+    stroke: var(--accent-color);
+    stroke-width: 2.5px;
+    filter: drop-shadow(0 0 3px rgba(111, 255, 233, 0.5));
+}
+
+/* Enhanced piece background */
+.piece-background {
+    filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.5));
+    transition: all 0.3s;
+}
+
+/* Enhanced piece symbol appearance */
+.piece-symbol {
+    font-size: 18px !important; /* Force a larger size */
+    font-weight: bold !important;
+    paint-order: stroke;
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.7));
+    transition: all 0.3s;
+    pointer-events: none;
+    z-index: 100; /* Ensure piece is on top */
+    text-rendering: geometricPrecision;
+}
+
+/* Ensure white pieces stand out */
+.node[data-piece-color="white"] .piece-symbol {
+    fill: #ffffff !important;
+    stroke: #000000 !important;
+    stroke-width: 0.5px !important;
+}
+
+/* Ensure black pieces stand out */
+.node[data-piece-color="black"] .piece-symbol {
+    fill: #000000 !important;
+    stroke: #ffffff !important;
+    stroke-width: 0.5px !important;
+}
+
+/* Strong background contrast */
+.node .piece-background {
+    opacity: 1 !important;
+}
+
+/* Make sure pieces get additional highlight when node is hovered */
+.node:hover .piece-symbol {
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 1));
+}
+
+/* Improved link appearance */
+.link {
+    stroke: rgba(255, 255, 255, 0.2);
+    transition: stroke 0.3s, stroke-width 0.3s;
+}
+
+.link:hover {
+    stroke: var(--accent-color);
+    filter: drop-shadow(0 0 2px rgba(111, 255, 233, 0.5));
+}
+
+/* Improved community hull appearance */
+.community-hull {
+    fill-opacity: 0.12;
+    stroke-width: 1;
+    stroke-opacity: 0.4;
+    transition: fill-opacity 0.3s;
+}
+
+.community-hull:hover {
+    fill-opacity: 0.2;
+}
+
+/* Dashboard panel improvements */
+.dashboard {
+    background-color: #050a14; /* Darker background for the whole dashboard */
+}
+
+.control-panel, .metrics-panel {
+    background-color: rgba(20, 30, 50, 0.85);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-right-color: rgba(60, 80, 120, 0.3);
+    border-left-color: rgba(60, 80, 120, 0.3);
+}
+
+.header {
+    background-color: rgba(20, 30, 50, 0.9);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Improved buttons and controls */
+.control-btn, .zoom-btn {
+    background-color: rgba(40, 60, 90, 0.8);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+}
+
+.control-btn:hover, .zoom-btn:hover {
+    background-color: var(--secondary-color);
+    transform: translateY(-1px) scale(1.08);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Improved tooltip */
+.tooltip {
+    background-color: rgba(20, 30, 50, 0.95);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(91, 192, 190, 0.3);
+    padding: 10px 14px;
+    border-radius: 8px;
+    max-width: 280px;
+    transition: opacity 0.2s, transform 0.2s;
+    transform-origin: top left;
+    z-index: 1000; /* Ensure tooltip is above other elements */
+}
+
+.tooltip:not(.hidden) {
+    transform: scale(1);
+    animation: tooltip-appear 0.2s ease-out;
+}
+
+@keyframes tooltip-appear {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Enhanced label visibility */
+.node-label {
+    text-shadow: 0 0 4px rgba(0, 0, 0, 1), 0 0 3px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.6);
+    font-weight: 700;
+    transition: opacity 0.2s;
+    paint-order: stroke;
+    stroke: rgba(0, 0, 0, 0.7);
+    stroke-width: 3px;
+}
+
+/* Metrics value styling */
+.metric-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent-color);
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.metric-high {
+    color: #4ade80; /* Success/high green */
+}
+
+.metric-medium {
+    color: #fcd34d; /* Medium/neutral yellow */
+}
+
+.metric-low {
+    color: #f87171; /* Low/warning red */
+}
+
+/* Fix for vendor prefixes */
+.select-dropdown {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none; /* Standard property */
+}
+
+.slider {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none; /* Standard property */
+}
+
+/* Animation for links */
+.link.animated {
+    stroke-dasharray: 5, 5;
+    animation: dash 1.5s linear infinite;
+}
+
+@keyframes dash {
+    to {
+        stroke-dashoffset: -20;
+    }
+}
+
+/* Additional metrics panel improvements */
+.metric-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 1px dotted rgba(255, 255, 255, 0.1);
+}
+
+.metric-row:last-child {
+    border-bottom: none;
+}
+
+.metric-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Metrics tabs styling improvements */
+.metrics-tabs {
+    display: flex;
+    gap: 0.3rem;
+    margin-bottom: 1rem;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 0.5rem 0;
+    background-color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-color);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+    background-color: var(--secondary-color);
+    color: var(--panel-background);
+}
+
+.tab-btn.active {
+    background-color: var(--secondary-color);
+    color: var(--panel-background);
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* FEN display improvements */
+.fen-display {
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 0.8rem;
+    border-radius: var(--border-radius);
+    border: 1px solid rgba(60, 80, 120, 0.5);
+    margin-bottom: 0.8rem;
+}
+
+.fen-string {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    word-break: break-all;
+}
+
+/* Selected node info panel */
+.selected-node-info {
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 0.8rem;
+    border-radius: var(--border-radius);
+    border: 1px solid rgba(60, 80, 120, 0.5);
+    font-size: 0.9rem;
+}
+
+.selected-node-info strong {
+    color: var(--accent-color);
+}
+
+.selected-node-info hr {
+    border: none;
+    border-top: 1px dotted rgba(255, 255, 255, 0.1);
+    margin: 0.6rem 0;
+}
+
+.tune-btn {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    margin-top: 8px;
+    background-color: var(--secondary-color);
+    color: var(--panel-background);
+    border: none;
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.tune-btn:hover {
+    background-color: var(--accent-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.tune-btn i {
+    margin-right: 5px;
+}
+
